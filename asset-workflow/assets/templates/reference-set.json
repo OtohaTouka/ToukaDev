@@ -1,0 +1,52 @@
+{
+  "work": "<作品>",
+  "approvedAt": "<ART-0 核可日期>",
+  "approval": "<人類原話或核可紀錄的位置>",
+  "classes": [
+    {
+      "id": "<畫面類別，例如 oblique-far>",
+      "description": "<鏡頭幾何或段落性質>",
+      "sections": ["<作品中屬於這一類的段落>"]
+    }
+  ],
+  "references": [
+    {
+      "file": "<作品>/reference-set/<檔名>",
+      "source": "<來源網址或出處>",
+      "license": "<授權名稱與條件>",
+      "retrievedAt": "<取得日期>",
+      "sha256": "<檔案雜湊>",
+      "class": "<對應的畫面類別>",
+      "window": { "start": "<分析起點>", "end": "<分析終點>" },
+      "measureBox": { "x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0 },
+      "conditions": "<光線、時段、鏡頭角度等，和作品的差異>"
+    }
+  ],
+  "metrics": [
+    {
+      "id": "<指標代號>",
+      "description": "<量什麼、怎麼量>",
+      "class": "<套用的畫面類別>",
+      "target": { "min": 0.0, "max": 1.0 },
+      "mode": "judge"
+    }
+  ],
+  "subjective": {
+    "items": ["<主觀評分項目>"],
+    "scale": "1-5",
+    "threshold": "<ART-0 核可的門檻>"
+  },
+  "excluded": [
+    { "section": "<不比的段落或指標>", "reason": "<理由，例如刻意風格化>" }
+  ],
+  "noiseFloor": { "method": "<同一份程式渲染兩次的比對方式>", "value": "<量到的差異>" },
+  "ruleChanges": [
+    {
+      "metric": "<指標代號>",
+      "before": "<原規則>",
+      "after": "<修正後規則>",
+      "reason": "<理由>",
+      "status": "pending"
+    }
+  ]
+}

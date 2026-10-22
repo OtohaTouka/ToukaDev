@@ -1,0 +1,26 @@
+# 環境
+.env
+.venv/
+.uv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 編輯器
+.vscode/
+.idea/
+*.swp
+
+# 建置產物
+dist/
+build/
+*.egg-info/
+site/              # MkDocs 輸出
+
+# 系統
+.DS_Store
+Thumbs.db
+
+# ToukaDev 本機進度紀錄
+.toukadev/

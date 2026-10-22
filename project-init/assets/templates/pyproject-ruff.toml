@@ -1,0 +1,26 @@
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle 錯誤
+    "F",   # pyflakes（未定義名稱、未使用 import）
+    "I",   # isort（import 排序）
+    "N",   # pep8-naming
+    "W",   # pycodestyle 警告
+    "UP",  # pyupgrade（語法現代化）
+    "B",   # flake8-bugbear（常見 bug 模式）
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # 行長由 line-length 控制
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

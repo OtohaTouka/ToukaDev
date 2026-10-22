@@ -1,0 +1,25 @@
+stages:
+  - test
+  - lint
+  - docs
+
+test:
+  stage: test
+  script:
+    - pytest tests/ -v
+  # 或 npx jest --verbose
+
+lint:
+  stage: lint
+  script:
+    - ruff check .
+    - uv run python scripts/guard_all.py
+    # 若有 Docker：
+    # - uv run python scripts/guard_dependencies.py
+
+docs:
+  stage: docs
+  script:
+    - mkdocs build
+  only:
+    - main

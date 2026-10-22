@@ -1,0 +1,15 @@
+version: 2.1
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - checkout
+      - run: pip install -r requirements-dev.txt
+      - run: pytest tests/ -v
+      - run: ruff check .
+      - run: uv run python scripts/guard_all.py
+workflows:
+  main:
+    jobs:
+      - test

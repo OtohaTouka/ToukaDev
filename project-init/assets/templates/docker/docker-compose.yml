@@ -1,0 +1,36 @@
+# ============================================================
+# docker-compose.yml 骨架（由 project-init 步驟6建立，僅 Docker 專案）
+# 置於專案根目錄——這是 `docker compose` 指令與
+# scripts/guard_dependencies.py 的預設讀取位置，勿移動。
+# 服務名稱、埠號、依賴請依實際架構調整；
+# depends_on 內容會被 guard_dependencies.py 檢查（缺服務定義、循環依賴）。
+# ============================================================
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"   # [對外埠:容器埠，依實際服務調整]
+    # 有資料庫等其他服務時，取消註解並填入：
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+
+  # ── 資料庫服務範例（需要時取消註解，並在 .env.example 補上對應變數） ──
+  # db:
+  #   image: postgres:16-alpine
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - db-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+
+# volumes:
+#   db-data:

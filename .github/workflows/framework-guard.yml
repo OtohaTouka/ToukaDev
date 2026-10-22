@@ -1,0 +1,32 @@
+name: framework-guard
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version-file: "pyproject.toml"
+          enable-cache: true
+      - name: Install Python
+        run: uv python install
+      - name: Sync locked environment
+        run: uv sync --locked
+      - name: Run framework guard tests
+        run: uv run --locked pytest tests
+      - name: Run Ruff
+        run: uv run --locked ruff check scripts tests project-init dev-workflow
+      - name: Run framework consistency guard
+        run: uv run --locked python scripts/guard_framework.py

@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # 若為 Node.js 專案，改用：
+      # - uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '20'
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+        # 若為 Node.js：run: npm ci
+
+      - name: Lint
+        run: |
+          ruff check .
+          python scripts/guard_all.py
+        # 若為 Node.js：run: npx eslint .
+
+      - name: Test
+        run: pytest tests/ -v
+        # 若為 Node.js：run: npx jest --verbose

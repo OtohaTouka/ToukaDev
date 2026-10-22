@@ -1,0 +1,39 @@
+# === Virtual environments ===
+.venv/
+.uv-cache/
+venv/
+env/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# === Node / JS-TS ===
+node_modules/
+
+# === Runtime artifacts ===
+*.db
+*.sqlite
+*.sqlite3
+.coverage
+htmlcov/
+
+# === Secrets（保留 .env.example）===
+.env
+.env.*
+!.env.example
+
+# === Claude Code 本地設定 ===
+.claude/settings.local.json
+.claude/worktrees/
+
+# === ToukaDev 本機進度紀錄 ===
+.toukadev/
+
+# === OS ===
+.DS_Store
+Thumbs.db

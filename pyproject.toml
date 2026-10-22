@@ -1,0 +1,31 @@
+[project]
+name = "toukadev-framework"
+version = "0.0.0"
+description = "Development and validation environment for the ToukaDev framework"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.16.0",
+]
+
+[tool.uv]
+package = false
+cache-dir = ".uv-cache"
+required-version = "==0.12.1"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = ["--strict-config", "--strict-markers"]
+cache_dir = ".uv-cache/pytest"
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

@@ -1,0 +1,22 @@
+# ============================================================
+# mkdocs.yml｜MkDocs 文件站設定(由 project-init 步驟7g 建立)
+# 佔位符:[專案名稱] 需替換為實際專案名稱。
+# 小型專案初始化不建立此檔（未安裝 MkDocs 依賴）。
+# ============================================================
+site_name: "[專案名稱]"
+docs_dir: docs
+# 輸出目錄為 site/(已在 .gitignore 中排除,勿改名,改了要同步 .gitignore)
+
+theme:
+  name: material
+  language: zh-TW
+
+# 刻意不設定 nav:MkDocs 會自動掃描 docs/ 下所有 .md 生成導覽,
+# 新增文件時不需要回來維護這裡。需要自訂順序時再加入 nav 區段。
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - tables
+  - fenced_code
+  - admonition

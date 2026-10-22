@@ -1,0 +1,8 @@
+pipelines:
+  default:
+    - step:
+        name: Test & Lint
+        script:
+          - pytest tests/ -v
+          - ruff check .
+          - uv run python scripts/guard_all.py

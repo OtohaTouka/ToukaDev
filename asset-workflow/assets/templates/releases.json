@@ -1,0 +1,37 @@
+{
+  "work": "<作品>",
+  "store": "<成品庫位置，由專案宣告>",
+  "releases": [
+    {
+      "revision": "rNN",
+      "status": "wip",
+      "date": "<成品日期>",
+      "tag": "<作品>/rNN",
+      "commit": "<ART-2 核可的候選 commit>",
+      "approval": {
+        "date": "<ART-2 核可日期>",
+        "source": "<人類原話或核可紀錄的位置>"
+      },
+      "files": [
+        {
+          "name": "<標題>_<長度>_<尺寸>_rNN.<副檔名>",
+          "purpose": "<用途>",
+          "bytes": 0,
+          "sha256": "<檔案雜湊>"
+        }
+      ],
+      "checks": { "count": 0, "bytes": 0 },
+      "published": [
+        {
+          "platform": "<平台>",
+          "date": "<發佈日期>",
+          "url": "<網址>",
+          "caption": "<文案>",
+          "file": "<上傳的檔名>",
+          "sha256": "<上傳檔案的雜湊>"
+        }
+      ],
+      "notes": ["<重現限制等必要說明>"]
+    }
+  ]
+}
