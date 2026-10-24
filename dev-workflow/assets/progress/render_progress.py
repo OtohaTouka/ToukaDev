@@ -468,12 +468,33 @@ def parse_task_state(value: str, record: Record) -> None:
 
 
 def assign_sections(sections: Sequence[Section], record: Record) -> None:
-    """同名的必要區段出現第二次時，第二個照原樣顯示在最下面。"""
+    """同名的必要區段寫了不只一段時警告。
+
+    「需要你決定的事」的後面幾段併進第一段，每段的待決都照算（寧可多算）；
+    其他必要區段的後面幾段照原樣顯示在最下面。
+    """
+    repeated: list[str] = []
     for section in sections:
-        if section.title in REQUIRED_SECTIONS and section.title not in record.sections:
-            record.sections[section.title] = section
+        title = section.title
+        if title not in REQUIRED_SECTIONS:
+            record.other_sections.append(section)
+            continue
+        if title not in record.sections:
+            record.sections[title] = section
+            continue
+        if title not in repeated:
+            repeated.append(title)
+        if title == DECISIONS:
+            record.sections[title].lines.extend(["", *section.lines])
         else:
             record.other_sections.append(section)
+    for title in repeated:
+        handling = (
+            "合併成一段顯示，每段的待決都照算"
+            if title == DECISIONS
+            else "後面那段照原樣顯示在最下面"
+        )
+        record.warnings.append(f"「{title}」寫了不只一段：{handling}；請合併成一段。")
 
 
 def report_missing_sections(record: Record) -> None:
@@ -1282,7 +1303,7 @@ def render_table(view: TableView) -> str:
     older = ""
     if cut:
         older = (
-            f'<details class="older-rows"><summary>較早的 {cut} 列（按一下展開）</summary>'
+            f'<details class="older-rows"><summary>較早的 {cut} 列（按一下展開／收合）</summary>'
             f"{table_open(view, leading)}{render_rows(view, range(cut))}{TABLE_END}"
             "</details>"
         )

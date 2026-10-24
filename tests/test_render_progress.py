@@ -2843,6 +2843,38 @@ class UnnumberedDecisionTests(TestCase):
                 self.assertEqual(index.find_all("span", cls="decision-flag"), [])
 
 
+class DuplicateSectionTests(TestCase):
+    """必要區段寫了兩次：要警告；第二段「需要你決定的事」的待決照樣算（寧可多算）。"""
+
+    def test_second_decision_section_still_counts(self) -> None:
+        record = build_record(extra="## 需要你決定的事\n\n1. 第二段裡的事？")
+        with RepoSandbox() as sandbox:
+            page = sandbox.render(record)
+            index = Page((sandbox.progress / "index.html").read_text("utf-8"))
+        (section,) = page.find_all("section", attrs={"data-section": "需要你決定的事"})
+        self.assertEqual(section.attrs["data-count"], "1")
+        self.assertIn("第二段裡的事？", section.text())
+        self.assertIn(
+            "「需要你決定的事」寫了不只一段：合併成一段顯示，每段的待決都照算；請合併成一段。",
+            page.warnings(),
+        )
+        items = [item.text() for item in index.find_all("li", cls="decision-item")]
+        self.assertEqual(items, ["測試任務：1. 第二段裡的事？"])
+
+    def test_other_repeated_sections_are_shown_and_warned(self) -> None:
+        record = build_record(extra="## 工作清單\n\n第二段的內容")
+        with RepoSandbox() as sandbox:
+            page = sandbox.render(record)
+        self.assertIn(
+            "「工作清單」寫了不只一段：後面那段照原樣顯示在最下面；請合併成一段。",
+            page.warnings(),
+        )
+        self.assertEqual(
+            len(page.find_all("section", attrs={"data-section": "工作清單"})), 2
+        )
+        self.assertIn("第二段的內容", page.text())
+
+
 class LongCellTests(TestCase):
     """進行中的紀錄裡，一格超過約 200 字就警告；「原話：「…」」裡的字不算。"""
 
@@ -2909,7 +2941,7 @@ class OlderReviewRowsTests(TestCase):
         (older,) = page.find_all("details", cls="older-rows", within=section)
         self.assertNotIn("open", older.attrs)
         self.assertEqual(
-            page.find("summary", within=older).text(), "較早的 2 列（按一下展開）"
+            page.find("summary", within=older).text(), "較早的 2 列（按一下展開／收合）"
         )
         def gates(region: Node) -> list[str]:
             return [
@@ -2923,11 +2955,25 @@ class OlderReviewRowsTests(TestCase):
         self.assertLess(page.source.index("<details"), page.source.index(">關卡 3<"))
         self.assertEqual(len(page.find_all("thead", within=section)), 2)
 
+    def test_text_outside_the_table_is_shown_once_after_the_rows(self) -> None:
+        reviews = review_rows(12) + "\n\n表格外的說明"
+        with RepoSandbox() as sandbox:
+            page = sandbox.render(build_record(sections={"審核紀錄": reviews}))
+        section = page.section("審核紀錄")
+        older = page.find("details", cls="older-rows", within=section)
+        self.assertNotIn("表格外的說明", older.text())
+        self.assertEqual(section.text().count("表格外的說明"), 1)
+        self.assertLess(page.source.index(">關卡 12<"), page.source.index("表格外的說明"))
+
     def test_open_state_is_kept_per_page_across_reloads(self) -> None:
         script = rp.SCRIPT
         self.assertIn('document.querySelectorAll("details.older-rows")', script)
-        self.assertIn("window.sessionStorage.getItem(olderKey())", script)
-        self.assertIn("window.location.pathname", script)
+        # 存的值和讀回來比對的值是同一個；讀到就照著打開，沒讀到就收合。
+        self.assertIn('window.sessionStorage.setItem(olderKey(), "open");', script)
+        self.assertIn('window.sessionStorage.getItem(olderKey()) === "open";', script)
+        self.assertIn("window.sessionStorage.removeItem(olderKey());", script)
+        self.assertIn("nodes[index].open = open;", script)
+        self.assertIn("return OLDER_KEY + window.location.pathname;", script)
         self.assertIn('addEventListener("toggle", saveOlder)', script)
         statements = [
             line.strip()
