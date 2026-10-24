@@ -1,3 +1,9 @@
+# 映像釘版本（uv 與 Python 和本機一致）；升級時一起改。
+default:
+  image: ghcr.io/astral-sh/uv:0.12.1-python3.12-trixie-slim
+  before_script:
+    - uv sync --locked
+
 stages:
   - test
   - lint
@@ -6,20 +12,20 @@ stages:
 test:
   stage: test
   script:
-    - pytest tests/ -v
-  # 或 npx jest --verbose
+    - uv run --locked pytest tests/ -v
+  # 或 npx jest --verbose（Node.js 專案另用 node 映像）
 
 lint:
   stage: lint
   script:
-    - ruff check .
-    - uv run python scripts/guard_all.py
+    - uv run --locked ruff check .
+    - uv run --locked python scripts/guard_all.py
     # 若有 Docker：
-    # - uv run python scripts/guard_dependencies.py
+    # - uv run --locked python scripts/guard_dependencies.py
 
 docs:
   stage: docs
   script:
-    - mkdocs build
+    - uv run --locked mkdocs build
   only:
     - main

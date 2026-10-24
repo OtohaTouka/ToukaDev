@@ -6,32 +6,42 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      # action 一律釘到 commit SHA，後面註明版本；升級時 SHA 與註解一起改。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: '3.11'
-      # 若為 Node.js 專案，改用：
-      # - uses: actions/setup-node@v4
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1" # 和本機用的 uv 版本一致
+      # 若為 Node.js 專案，另加：
+      # - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       #   with:
-      #     node-version: '20'
+      #     node-version: '24'
+
+      - name: Install Python
+        run: uv python install # 版本依 .python-version
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
-        # 若為 Node.js：run: npm ci
+        run: uv sync --locked
+        # 若為 Node.js：另加 run: npm ci
 
       - name: Lint
         run: |
-          ruff check .
-          python scripts/guard_all.py
-        # 若為 Node.js：run: npx eslint .
+          uv run --locked ruff check .
+          uv run --locked python scripts/guard_all.py
+        # 若為 Node.js：另加 npx eslint .
 
       - name: Test
-        run: pytest tests/ -v
+        run: uv run --locked pytest tests/ -v
         # 若為 Node.js：run: npx jest --verbose

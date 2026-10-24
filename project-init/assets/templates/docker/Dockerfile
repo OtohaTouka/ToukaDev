@@ -5,8 +5,8 @@
 # ============================================================
 FROM python:3.12-slim
 
-# 取得 uv 執行檔（本框架一律以 uv 管理 Python 依賴；正式環境建議固定版本標籤）
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# 取得 uv 執行檔（本框架一律以 uv 管理 Python 依賴；版本釘住並和本機一致，升級時一起改）
+COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /uvx /bin/
 
 WORKDIR /app
 
