@@ -2861,6 +2861,25 @@ class DuplicateSectionTests(TestCase):
         items = [item.text() for item in index.find_all("li", cls="decision-item")]
         self.assertEqual(items, ["測試任務：1. 第二段裡的事？"])
 
+    def test_each_repeated_part_starts_at_the_top_level(self) -> None:
+        # 第二段開頭縮排或是一般段落，都不能被當成上一段最後一項的子項目或接續行。
+        cases = {
+            "  - 要不要 Y？": ["測試任務：1. A？", "測試任務：要不要 Y？⚠ 格式待修，可能是待決"],
+            "請決定 Z。": ["測試任務：1. A？", "測試任務：請決定 Z。⚠ 格式待修，可能是待決"],
+        }
+        for second, expected in cases.items():
+            record = build_record(
+                sections={"需要你決定的事": "1. A？"},
+                extra=f"## 需要你決定的事\n\n{second}",
+            )
+            with self.subTest(second=second), RepoSandbox() as sandbox:
+                page = sandbox.render(record)
+                index = Page((sandbox.progress / "index.html").read_text("utf-8"))
+                section = page.section("需要你決定的事")
+                self.assertEqual(section.attrs["data-count"], "2")
+                items = [item.text() for item in index.find_all("li", cls="decision-item")]
+                self.assertEqual(items, expected)
+
     def test_other_repeated_sections_are_shown_and_warned(self) -> None:
         record = build_record(extra="## 工作清單\n\n第二段的內容")
         with RepoSandbox() as sandbox:
@@ -2969,7 +2988,11 @@ class OlderReviewRowsTests(TestCase):
         script = rp.SCRIPT
         self.assertIn('document.querySelectorAll("details.older-rows")', script)
         # 存的值和讀回來比對的值是同一個；讀到就照著打開，沒讀到就收合。
-        self.assertIn('window.sessionStorage.setItem(olderKey(), "open");', script)
+        self.assertIn(
+            "if (event.target.open) {\n"
+            '        window.sessionStorage.setItem(olderKey(), "open");',
+            script,
+        )
         self.assertIn('window.sessionStorage.getItem(olderKey()) === "open";', script)
         self.assertIn("window.sessionStorage.removeItem(olderKey());", script)
         self.assertIn("nodes[index].open = open;", script)

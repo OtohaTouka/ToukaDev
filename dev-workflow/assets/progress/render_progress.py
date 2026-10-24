@@ -442,6 +442,16 @@ def split_sections(lines: Sequence[str]) -> tuple[list[str], list[Section]]:
     return preamble, sections
 
 
+def top_level_lines(lines: Sequence[str]) -> list[str]:
+    """讓這一段的第一行從最上層開始：每行去掉和第一個非空行一樣多的開頭空白（不夠就去掉現有的）。
+
+    重複的「需要你決定的事」併進第一段時用，免得開頭縮排的項目被當成上一段最後一項的子項目。
+    """
+    first = next((line for line in lines if line.strip()), "")
+    indent = len(first) - len(first.lstrip(" "))
+    return [line[min(indent, len(line) - len(line.lstrip(" "))) :] for line in lines]
+
+
 def parse_preamble(lines: Sequence[str], record: Record) -> None:
     """只讀「任務狀態：」；舊紀錄的「更新時間：」略過，其他文字照原樣顯示在最上面。"""
     seen: set[str] = set()
@@ -485,7 +495,7 @@ def assign_sections(sections: Sequence[Section], record: Record) -> None:
         if title not in repeated:
             repeated.append(title)
         if title == DECISIONS:
-            record.sections[title].lines.extend(["", *section.lines])
+            record.sections[title].lines.extend(["", *top_level_lines(section.lines)])
         else:
             record.other_sections.append(section)
     for title in repeated:

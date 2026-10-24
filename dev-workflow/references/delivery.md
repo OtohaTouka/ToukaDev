@@ -91,8 +91,6 @@ DEV-B 審核時的同樣路徑；commit 前先比對 tree 編號，相同才 com
 正式 stage 不得帶 DEV-B 用過的 `GIT_INDEX_FILE`。
 真正暫存區原本已有其他 stage 的內容時，先請人類處理，不得自行清除。
 
-主代理代審時（上面兩種情況都算），合併或 commit 後更新進度紀錄，並重產一次進度網頁。
-
 ```bash
 # 只加入 DEV-B 審核時的相對路徑；禁止 git add .、git add -A 或未解析 glob
 git add -- [approved-path-1] [approved-path-2]
@@ -111,6 +109,8 @@ git rev-parse "HEAD^{tree}"
 
 `git write-tree` 或 `HEAD^{tree}` 與 DEV-B 記下的 tree 編號不同，立即停止並返回 DEV-B，不得用「只是小改」帶過。
 主代理模式返回主代理 DEV-B；在本任務委託內不因此重問人類。
+
+主代理代審時（上面兩種情況都算），合併或 commit 後更新進度紀錄，並重產一次進度網頁。
 
 Commit 類型：`feat`（新功能）、`fix`（修復）、`refactor`（重構）、`docs`（文件）、`test`（測試）
 
