@@ -2865,6 +2865,8 @@ class DuplicateSectionTests(TestCase):
         # 第二段開頭縮排或是一般段落，都不能被當成上一段最後一項的子項目或接續行。
         cases = {
             "  - 要不要 Y？": ["測試任務：1. A？", "測試任務：要不要 Y？⚠ 格式待修，可能是待決"],
+            "\t\t- 要不要 Y？": ["測試任務：1. A？", "測試任務：要不要 Y？⚠ 格式待修，可能是待決"],
+            "　　- 要不要 Y？": ["測試任務：1. A？", "測試任務：要不要 Y？⚠ 格式待修，可能是待決"],
             "請決定 Z。": ["測試任務：1. A？", "測試任務：請決定 Z。⚠ 格式待修，可能是待決"],
         }
         for second, expected in cases.items():
@@ -2879,6 +2881,18 @@ class DuplicateSectionTests(TestCase):
                 self.assertEqual(section.attrs["data-count"], "2")
                 items = [item.text() for item in index.find_all("li", cls="decision-item")]
                 self.assertEqual(items, expected)
+
+    def test_parts_without_blank_lines_stay_apart(self) -> None:
+        # 兩段之間一個空行都沒有時，後一段的段落也不能變成前一段最後一項的接續行。
+        decisions = "1. A？\n## 需要你決定的事\n請決定 C。"
+        with RepoSandbox() as sandbox:
+            page = sandbox.render(build_record(sections={"需要你決定的事": decisions}))
+            index = Page((sandbox.progress / "index.html").read_text("utf-8"))
+        self.assertEqual(page.section("需要你決定的事").attrs["data-count"], "2")
+        items = [item.text() for item in index.find_all("li", cls="decision-item")]
+        self.assertEqual(
+            items, ["測試任務：1. A？", "測試任務：請決定 C。⚠ 格式待修，可能是待決"]
+        )
 
     def test_other_repeated_sections_are_shown_and_warned(self) -> None:
         record = build_record(extra="## 工作清單\n\n第二段的內容")

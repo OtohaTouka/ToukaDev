@@ -446,10 +446,11 @@ def top_level_lines(lines: Sequence[str]) -> list[str]:
     """讓這一段的第一行從最上層開始：每行去掉和第一個非空行一樣多的開頭空白（不夠就去掉現有的）。
 
     重複的「需要你決定的事」併進第一段時用，免得開頭縮排的項目被當成上一段最後一項的子項目。
+    空白的定義和清單解析的 `\\s` 一樣（含 tab、全形空白）。
     """
     first = next((line for line in lines if line.strip()), "")
-    indent = len(first) - len(first.lstrip(" "))
-    return [line[min(indent, len(line) - len(line.lstrip(" "))) :] for line in lines]
+    indent = len(first) - len(first.lstrip())
+    return [line[min(indent, len(line) - len(line.lstrip())) :] for line in lines]
 
 
 def parse_preamble(lines: Sequence[str], record: Record) -> None:
