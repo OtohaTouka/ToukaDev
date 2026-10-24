@@ -27,6 +27,9 @@
   也不排自動重新整理（是否即時只看 head 腳本依協定白名單設定的 class）。
 - 選取文字時暫停重新整理，並在固定位置說明原因。
 - 淺色／深色切換只記在這個瀏覽器（localStorage），只接受 light、dark。
+- 審核紀錄超過 10 列時，較早的列收合；展開狀態只記在這個分頁（sessionStorage），
+  重新整理後照舊（ADR-046 D8）。
+- 總覽最上方另列各任務的格式警告件數；「需要你決定的事」裡不是編號項目的照樣列為待決並標出來。
 """
 
 from __future__ import annotations
@@ -110,6 +113,13 @@ FUTURE_MIN_SECONDS = 60
 FUTURE_MAX_SECONDS = 59 * 60
 # 只寫月日時取存檔那年；算出來比存檔時間晚超過這麼久，才當成前一年（跨年）。
 YEAR_BACK_SECONDS = 30 * 24 * 60 * 60
+# 進行中的紀錄裡，一格超過這麼多字就警告（ADR-046 D8）。
+LONG_CELL_CHARS = 200
+# 「原話：「…」」引號裡的字不算：人類原話照留在紀錄，不改短。引號可以巢狀。
+QUOTE_LEAD_PATTERN = re.compile(r"原話\s*[：:]\s*「")
+QUOTE_OPEN, QUOTE_CLOSE = "「", "」"
+# 「需要你決定的事」裡不是編號項目的待決照樣算，總覽另標這句。
+UNNUMBERED_FLAG = "格式待修，可能是待決"
 
 # ── 不覆寫別人的檔案 ─────────────────────────────────────────────
 
@@ -131,6 +141,10 @@ SNAPSHOT_TEXT = "此畫面不會自動更新：請用一般瀏覽器開啟 index
 PAUSED_TEXT = "已暫停自動更新：你選取了文字（取消選取即恢復）"
 THEME_STORAGE_KEY = "toukadev-progress-theme"
 THEME_TITLE = "切換顯示：跟隨系統 → 淺色 → 深色"
+# 審核紀錄超過這麼多列時，只展開最近的這幾列，較早的收合；展開狀態只記在這個分頁（sessionStorage）。
+REVIEW_OPEN_ROWS = 10
+OLDER_STORAGE_KEY = "toukadev-progress-older:"
+FORMAT_SUMMARY = "格式警告"
 
 TITLE_PATTERN = re.compile(r"^#\s+(?P<title>.+?)\s*$")
 SECTION_PATTERN = re.compile(r"^##\s+(?P<title>.+?)\s*#*\s*$")
@@ -176,7 +190,10 @@ class Record:
 
 @dataclass(frozen=True)
 class TableSpec:
-    """通用表格：依表頭顯示所有欄位；有規定狀態的表格替「狀態」欄上色。"""
+    """通用表格：依表頭顯示所有欄位；有規定狀態的表格替「狀態」欄上色。
+
+    open_rows 有值時，列數超過就只展開最近的這幾列，較早的收合。
+    """
 
     label: str
     css: str
@@ -184,6 +201,7 @@ class TableSpec:
     statuses: tuple[str, ...]
     classes: Mapping[str, str]
     marks: bool
+    open_rows: int | None = None
 
 
 @dataclass(frozen=True)
@@ -354,7 +372,9 @@ TASK_STATE_CLASSES = {"進行中": "st-doing", "已結束": "st-complete"}
 WORK_TABLE = TableSpec(
     WORK, "work-table", "work-row", WORK_STATUSES, STATUS_CLASSES, True
 )
-REVIEW_TABLE = TableSpec(REVIEWS, "review-table", "review-row", (), {}, False)
+REVIEW_TABLE = TableSpec(
+    REVIEWS, "review-table", "review-row", (), {}, False, REVIEW_OPEN_ROWS
+)
 TEMP_TABLE = TableSpec(
     TEMP, "temp-table", "temp-row", TEMP_STATES, TEMP_STATE_CLASSES, False
 )
@@ -422,6 +442,17 @@ def split_sections(lines: Sequence[str]) -> tuple[list[str], list[Section]]:
     return preamble, sections
 
 
+def top_level_lines(lines: Sequence[str]) -> list[str]:
+    """讓這一段的第一行從最上層開始：每行去掉和第一個非空行一樣多的開頭空白（不夠就去掉現有的）。
+
+    重複的「需要你決定的事」併進第一段時用，免得開頭縮排的項目被當成上一段最後一項的子項目。
+    空白的定義和清單解析的 `\\s` 一樣（含 tab、全形空白）。
+    """
+    first = next((line for line in lines if line.strip()), "")
+    indent = len(first) - len(first.lstrip())
+    return [line[min(indent, len(line) - len(line.lstrip())) :] for line in lines]
+
+
 def parse_preamble(lines: Sequence[str], record: Record) -> None:
     """只讀「任務狀態：」；舊紀錄的「更新時間：」略過，其他文字照原樣顯示在最上面。"""
     seen: set[str] = set()
@@ -448,12 +479,33 @@ def parse_task_state(value: str, record: Record) -> None:
 
 
 def assign_sections(sections: Sequence[Section], record: Record) -> None:
-    """同名的必要區段出現第二次時，第二個照原樣顯示在最下面。"""
+    """同名的必要區段寫了不只一段時警告。
+
+    「需要你決定的事」的後面幾段併進第一段，每段的待決都照算（寧可多算）；
+    其他必要區段的後面幾段照原樣顯示在最下面。
+    """
+    repeated: list[str] = []
     for section in sections:
-        if section.title in REQUIRED_SECTIONS and section.title not in record.sections:
-            record.sections[section.title] = section
+        title = section.title
+        if title not in REQUIRED_SECTIONS:
+            record.other_sections.append(section)
+            continue
+        if title not in record.sections:
+            record.sections[title] = section
+            continue
+        if title not in repeated:
+            repeated.append(title)
+        if title == DECISIONS:
+            record.sections[title].lines.extend(["", *top_level_lines(section.lines)])
         else:
             record.other_sections.append(section)
+    for title in repeated:
+        handling = (
+            "合併成一段顯示，每段的待決都照算"
+            if title == DECISIONS
+            else "後面那段照原樣顯示在最下面"
+        )
+        record.warnings.append(f"「{title}」寫了不只一段：{handling}；請合併成一段。")
 
 
 def report_missing_sections(record: Record) -> None:
@@ -652,20 +704,77 @@ def list_number(match: re.Match[str] | None) -> str | None:
 def analyze_record(record: Record, source_name: str, modified_epoch: int) -> RecordView:
     work = table_or_none(record, WORK_TABLE)
     reviews = table_or_none(record, REVIEW_TABLE)
-    if record.task_state == RUNNING_STATE and reviews is not None:
+    running = record.task_state == RUNNING_STATE
+    if running and reviews is not None:
         check_review_times(reviews.rows, modified_epoch, record.warnings)
+    temp = table_or_none(record, TEMP_TABLE)
+    if running:
+        for table in (work, reviews, temp):
+            check_long_cells(table, record.warnings)
+    decisions = analyze_decisions(record.sections.get(DECISIONS))
+    check_unnumbered_decisions(decisions, record.warnings)
     view = RecordView(
         record,
         source_name,
-        analyze_decisions(record.sections.get(DECISIONS)),
+        decisions,
         work,
         reviews,
-        table_or_none(record, TEMP_TABLE),
+        temp,
         record.sections.get(ISSUES),
         modified_epoch,
     )
     check_waiting_holds(view)
     return view
+
+
+def check_long_cells(table: TableView | None, warnings: list[str]) -> None:
+    """一格超過約 200 字就警告，同一張表的列號合成一則；「原話：「…」」裡的字不算。"""
+    if table is None:
+        return
+    numbers = [
+        str(number)
+        for number, row in enumerate(table.rows, start=1)
+        if any(counted_length(cell) > LONG_CELL_CHARS for cell in row.values())
+    ]
+    if numbers:
+        warnings.append(
+            f"{table.spec.label}第 {'、'.join(numbers)} 列有格子超過約 {LONG_CELL_CHARS} 字"
+            "（人類原話不算）：每列寫一兩句，細節放 PR 說明或 ADR。"
+        )
+
+
+def counted_length(cell: str) -> int:
+    """格子的字數，不算「原話：「…」」引號裡的字；沒收尾的原話一直算到格子結尾。"""
+    counted, position = 0, 0
+    for match in QUOTE_LEAD_PATTERN.finditer(cell):
+        if match.start() < position:
+            continue
+        counted += match.end() - position
+        position = quote_end(cell, match.end())
+    return counted + len(cell) - position
+
+
+def quote_end(text: str, start: int) -> int:
+    """從開引號後面找對應的收引號（可巢狀），回傳收引號後面的位置；沒收尾就回傳結尾。"""
+    depth = 1
+    for index in range(start, len(text)):
+        if text[index] == QUOTE_OPEN:
+            depth += 1
+        elif text[index] == QUOTE_CLOSE:
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return len(text)
+
+
+def check_unnumbered_decisions(decisions: DecisionView, warnings: list[str]) -> None:
+    """不是編號項目的待決（段落或 - 清單）照樣算待決，另外警告要修。"""
+    count = sum(1 for item in decisions.items if item.number is None)
+    if count:
+        warnings.append(
+            f"「{DECISIONS}」有 {count} 項不是編號項目：只放編號項目，回覆過的整項移走；"
+            "總覽照樣列成可能待決。"
+        )
 
 
 def check_waiting_holds(view: RecordView) -> None:
@@ -891,6 +1000,10 @@ code {
   font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size: 0.9em;
   background: var(--neutral-bg); padding: 0 4px; border-radius: 4px;
 }
+.older-rows { margin: 0 0 8px; }
+.older-rows > summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+.decision-flag { margin-left: 6px; }
+.format-summary { border: 2px solid var(--warn-fg); }
 footer { color: var(--muted); font-size: 0.85rem; margin-top: 24px; }
 a { color: var(--info-fg); }
 .nav { margin: 0 0 8px; font-size: 0.9rem; }
@@ -926,6 +1039,7 @@ SCRIPT = """
   var REFRESH_MS = %(refresh_ms)d;
   var STALE_TEXT = "%(stale_text)s";
   var THEME_KEY = %(theme_key)s;
+  var OLDER_KEY = %(older_key)s;
   var NEXT_THEME = { system: "light", light: "dark", dark: "system" };
   var LIVE = document.documentElement.classList.contains("live");
   function staleLevel(node, elapsed) {
@@ -1000,15 +1114,40 @@ SCRIPT = """
       showPause(selectedText() !== "");
     });
   }
+  function olderKey() {
+    return OLDER_KEY + window.location.pathname;
+  }
+  function saveOlder(event) {
+    try {
+      if (event.target.open) {
+        window.sessionStorage.setItem(olderKey(), "open");
+      } else {
+        window.sessionStorage.removeItem(olderKey());
+      }
+    } catch (error) { return; }
+  }
+  function restoreOlder() {
+    var open = false;
+    try {
+      open = window.sessionStorage.getItem(olderKey()) === "open";
+    } catch (error) { open = false; }
+    var nodes = document.querySelectorAll("details.older-rows");
+    for (var index = 0; index < nodes.length; index += 1) {
+      nodes[index].open = open;
+      nodes[index].addEventListener("toggle", saveOlder);
+    }
+  }
   if (LIVE) { scheduleReload(); }
   updateAll();
   showLoadedAt();
+  restoreOlder();
   watchControls();
 })();
 """ % {
     "refresh_ms": REFRESH_SECONDS * 1000,
     "stale_text": STALE_TEXT,
     "theme_key": json.dumps(THEME_STORAGE_KEY),
+    "older_key": json.dumps(OLDER_STORAGE_KEY),
 }
 
 
@@ -1151,8 +1290,11 @@ def table_open(view: TableView, leading: Sequence[str]) -> str:
     )
 
 
+TABLE_END = "</tbody></table></div>"
+
+
 def table_close(view: TableView) -> str:
-    return "</tbody></table></div>" + render_raw(view.extra_lines)
+    return TABLE_END + render_raw(view.extra_lines)
 
 
 def render_table_section(view: TableView | None, title: str, summary: str = "") -> str:
@@ -1165,9 +1307,23 @@ def render_table_section(view: TableView | None, title: str, summary: str = "") 
 
 
 def render_table(view: TableView) -> str:
+    """列數超過 open_rows 時，較早的列放進收合的表格，排在最近幾列前面（順序照紀錄）。"""
     leading = ["進度"] if view.spec.marks else []
-    rows = [render_row(view, index) for index in range(len(view.rows))]
-    return table_open(view, leading) + "".join(rows) + table_close(view)
+    total, keep = len(view.rows), view.spec.open_rows
+    cut = total - keep if keep is not None and total > keep else 0
+    older = ""
+    if cut:
+        older = (
+            f'<details class="older-rows"><summary>較早的 {cut} 列（按一下展開／收合）</summary>'
+            f"{table_open(view, leading)}{render_rows(view, range(cut))}{TABLE_END}"
+            "</details>"
+        )
+    recent = render_rows(view, range(cut, total))
+    return older + table_open(view, leading) + recent + table_close(view)
+
+
+def render_rows(view: TableView, indexes: range) -> str:
+    return "".join(render_row(view, index) for index in indexes)
 
 
 def render_row(view: TableView, index: int) -> str:
@@ -1392,6 +1548,7 @@ def render_index_page(
             "<header><h1>進度總覽</h1></header>\n",
             render_folder_notices(result),
             render_decision_summary(entries),
+            render_format_summary(entries),
             render_now_next_summary(entries),
             render_board(board, ordered),
             render_overview_table(ordered),
@@ -1424,10 +1581,32 @@ def render_decision_entry(entry: SummaryEntry, item: ListItem) -> str:
     if state == FINISHED_STATE:
         finished = f'<span class="chip st-complete">{esc(FINISHED_STATE)}</span>'
     number = f"{item.number}. " if item.number is not None else ""
+    flag = ""
+    if item.number is None:
+        flag = f'<span class="chip st-unknown decision-flag">⚠ {esc(UNNUMBERED_FLAG)}</span>'
     return (
         f'<li class="decision-item" data-record="{esc(record.stem)}"'
         f'{project_attribute(entry)} data-state="{esc(state)}">'
-        f"{entry.title_html}{finished}：{esc(number)}{inline(item.text)}</li>"
+        f"{entry.title_html}{finished}：{esc(number)}{inline(item.text)}{flag}</li>"
+    )
+
+
+def render_format_summary(entries: Sequence[SummaryEntry]) -> str:
+    """有格式警告的任務各列一項與件數（含其他專案）；都沒有就不顯示。"""
+    flagged = [entry for entry in entries if entry.view.warnings]
+    if not flagged:
+        return ""
+    total = sum(len(entry.view.warnings) for entry in flagged)
+    items = "".join(
+        f'<li class="format-item" data-record="{esc(entry.view.record.stem)}"'
+        f"{project_attribute(entry)}>{entry.title_html}：{len(entry.view.warnings)} 項</li>"
+        for entry in flagged
+    )
+    opening = open_section(FORMAT_SUMMARY, "format-summary", f' data-count="{total}"')
+    return (
+        f"{opening}<h2>{esc(FORMAT_SUMMARY)}（{total} 項）</h2>"
+        "<p>內容在各任務頁上方；看到就修正紀錄（.md）。</p>"
+        f'<ul class="summary-list">{items}</ul></section>\n'
     )
 
 

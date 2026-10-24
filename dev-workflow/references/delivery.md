@@ -57,6 +57,9 @@ uv run mkdocs build
 # 確認無 WARNING 或 ERROR
 ```
 
+**10f. 進度網頁（主代理代審時）**
+- 更新進度紀錄後重產一次進度網頁（`references/progress-record.md`「產生網頁」）；有格式警告就當場修正紀錄再產生。
+
 ---
 
 ## 步驟12｜產出變更摘要
@@ -106,6 +109,8 @@ git rev-parse "HEAD^{tree}"
 
 `git write-tree` 或 `HEAD^{tree}` 與 DEV-B 記下的 tree 編號不同，立即停止並返回 DEV-B，不得用「只是小改」帶過。
 主代理模式返回主代理 DEV-B；在本任務委託內不因此重問人類。
+
+主代理代審時（上面兩種情況都算），合併或 commit 後更新進度紀錄，並重產一次進度網頁。
 
 Commit 類型：`feat`（新功能）、`fix`（修復）、`refactor`（重構）、`docs`（文件）、`test`（測試）
 
