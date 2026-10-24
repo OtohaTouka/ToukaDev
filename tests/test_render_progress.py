@@ -2085,7 +2085,8 @@ def test_summary_lists_every_pending_decision_with_a_link(tmp_path: Path) -> Non
         ("alpha", "任務 alpha：1. 第一件？", ["alpha.html"]),
         ("alpha", "任務 alpha：3. 第三件？", ["alpha.html"]),
         ("beta", "任務 beta已結束：1. 收尾清理清單：要刪哪些？", ["beta.html"]),
-        ("Bad_Name", "任務 Bad_Name：要不要改名？", []),
+        # 不是編號項目照樣列出，另標要修（ADR-046 D8）。
+        ("Bad_Name", "任務 Bad_Name：要不要改名？⚠ 格式待修，可能是待決", []),
     ]
     assert "子項目" not in section.text()
 
@@ -2781,3 +2782,219 @@ class LocationAndOwnershipTests(TestCase):
             page = Page(path.with_suffix(".html").read_text(encoding="utf-8"))
         self.assertEqual(code, 0, stderr)
         self.assertIn("已結束", page.find("header").text())
+
+
+# ── 太長與格式（ADR-046 D8）：非編號待決、長格子、舊審核紀錄收合、總覽件數 ──
+
+DELIVERY_DOC = ROOT / "dev-workflow" / "references" / "delivery.md"
+UNNUMBERED_WARNING = (
+    "「需要你決定的事」有 {count} 項不是編號項目：只放編號項目，回覆過的整項移走；"
+    "總覽照樣列成可能待決。"
+)
+
+
+def long_cell_warning(table: str, numbers: str) -> str:
+    return (
+        f"{table}第 {numbers} 列有格子超過約 200 字（人類原話不算）："
+        "每列寫一兩句，細節放 PR 說明或 ADR。"
+    )
+
+
+def review_rows(count: int, note: str = "—") -> str:
+    rows = [
+        f"| 10/11 {9 + number // 60:02d}:{number % 60:02d} | 關卡 {number} | 對象 | 主代理 "
+        f"| reviewer | 通過 | {note} |"
+        for number in range(1, count + 1)
+    ]
+    return "\n".join([*REVIEW_TABLE.splitlines()[:2], *rows])
+
+
+def review_note_warnings(note: str, state: str | None = "進行中") -> list[str]:
+    with RepoSandbox() as sandbox:
+        record = build_record(state=state, sections={"審核紀錄": review_rows(1, note)})
+        return sandbox.render(record).warnings()
+
+
+class UnnumberedDecisionTests(TestCase):
+    """「需要你決定的事」只放編號項目；其他寫法照樣算待決，並標出來要修。"""
+
+    def test_paragraphs_and_plain_bullets_are_flagged_and_still_counted(self) -> None:
+        cases = {
+            "請決定要不要加 X。": 1,
+            "- 要不要加 X？\n- 要不要加 Y？": 2,
+            "1. 要不要加 X？\n\n補充：這也要你看。": 1,
+        }
+        for body, flagged in cases.items():
+            with self.subTest(body=body), RepoSandbox() as sandbox:
+                page = sandbox.render(build_record(sections={"需要你決定的事": body}))
+                self.assertIn(UNNUMBERED_WARNING.format(count=flagged), page.warnings())
+                index = Page((sandbox.progress / "index.html").read_text("utf-8"))
+                flags = index.find_all("span", cls="decision-flag")
+                self.assertEqual(len(flags), flagged)
+                for flag in flags:
+                    self.assertEqual(flag.text(), "⚠ 格式待修，可能是待決")
+
+    def test_numbered_items_and_nothing_pending_are_not_flagged(self) -> None:
+        for body in ("1. 要不要加 X？\n   - 甲\n   - 乙", "目前沒有。", "- 目前沒有。"):
+            with self.subTest(body=body), RepoSandbox() as sandbox:
+                page = sandbox.render(build_record(sections={"需要你決定的事": body}))
+                self.assertEqual(page.warnings(), [])
+                index = Page((sandbox.progress / "index.html").read_text("utf-8"))
+                self.assertEqual(index.find_all("span", cls="decision-flag"), [])
+
+
+class LongCellTests(TestCase):
+    """進行中的紀錄裡，一格超過約 200 字就警告；「原話：「…」」裡的字不算。"""
+
+    def test_threshold_is_200_characters(self) -> None:
+        self.assertEqual(rp.LONG_CELL_CHARS, 200)
+        self.assertEqual(review_note_warnings("字" * 200), [])
+        self.assertEqual(
+            review_note_warnings("字" * 201), [long_cell_warning("審核紀錄", "1")]
+        )
+
+    def test_every_table_is_checked_and_rows_are_listed_once(self) -> None:
+        long_note = "字" * 201
+        work = work_table(("A", "執行中", long_note), ("B", "待辦", "—"), ("C", "待辦", long_note))
+        temp = TEMP_TABLE + f"\n| 筆記 | 其他 | .toukadev/tmp/demo/x | 主代理 | 使用中 | {long_note} |"
+        with RepoSandbox() as sandbox:
+            record = build_record(sections={"工作清單": work, "暫存項目": temp})
+            warnings = sandbox.render(record).warnings()
+        self.assertEqual(
+            warnings,
+            [long_cell_warning("工作清單", "1、3"), long_cell_warning("暫存項目", "3")],
+        )
+
+    def test_human_quotes_do_not_count(self) -> None:
+        quote = "原話：「" + "話" * 300 + "」"
+        nested = "原話:「先「引一句」" + "話" * 300 + "」"
+        self.assertEqual(review_note_warnings(quote + "說明" * 90), [])
+        self.assertEqual(review_note_warnings(nested + "說明" * 90), [])
+        # 引號外的字照算；沒有「原話」開頭的引號也照算。
+        self.assertEqual(
+            review_note_warnings(quote + "說明" * 101), [long_cell_warning("審核紀錄", "1")]
+        )
+        self.assertEqual(
+            review_note_warnings("「" + "話" * 201 + "」"), [long_cell_warning("審核紀錄", "1")]
+        )
+        # 沒收尾的原話一直算到格子結尾：引號後的字都不算，引號前的字照算。
+        self.assertEqual(review_note_warnings("原話：「" + "話" * 300), [])
+        self.assertEqual(
+            review_note_warnings("說明" * 101 + "原話：「" + "話" * 300),
+            [long_cell_warning("審核紀錄", "1")],
+        )
+
+    def test_only_running_records_are_checked(self) -> None:
+        for state in ("已結束", None):
+            with self.subTest(state=state):
+                self.assertEqual(review_note_warnings("字" * 300, state=state), [])
+
+
+class OlderReviewRowsTests(TestCase):
+    """審核紀錄超過 10 列時，最近 10 列照常顯示，較早的收合；重新整理時保留展開狀態。"""
+
+    def render_reviews(self, count: int) -> Page:
+        with RepoSandbox() as sandbox:
+            return sandbox.render(build_record(sections={"審核紀錄": review_rows(count)}))
+
+    def test_ten_rows_stay_open(self) -> None:
+        self.assertEqual(rp.REVIEW_OPEN_ROWS, 10)
+        page = self.render_reviews(10)
+        self.assertEqual(page.find_all("details"), [])
+        self.assertEqual(len(page.find_all("tr", cls="review-row")), 10)
+
+    def test_older_rows_collapse_in_order(self) -> None:
+        page = self.render_reviews(12)
+        section = page.section("審核紀錄")
+        (older,) = page.find_all("details", cls="older-rows", within=section)
+        self.assertNotIn("open", older.attrs)
+        self.assertEqual(
+            page.find("summary", within=older).text(), "較早的 2 列（按一下展開）"
+        )
+        def gates(region: Node) -> list[str]:
+            return [
+                page.find("td", cls="col-關卡", within=row).text()
+                for row in page.find_all("tr", cls="review-row", within=region)
+            ]
+
+        self.assertEqual(gates(older), ["關卡 1", "關卡 2"])
+        # 收合的表格排在最近 10 列前面；整區照紀錄的順序，一列都不少。
+        self.assertEqual(gates(section), [f"關卡 {number}" for number in range(1, 13)])
+        self.assertLess(page.source.index("<details"), page.source.index(">關卡 3<"))
+        self.assertEqual(len(page.find_all("thead", within=section)), 2)
+
+    def test_open_state_is_kept_per_page_across_reloads(self) -> None:
+        script = rp.SCRIPT
+        self.assertIn('document.querySelectorAll("details.older-rows")', script)
+        self.assertIn("window.sessionStorage.getItem(olderKey())", script)
+        self.assertIn("window.location.pathname", script)
+        self.assertIn('addEventListener("toggle", saveOlder)', script)
+        statements = [
+            line.strip()
+            for line in script.splitlines()
+            if re.match(r"  [^ }]", line)
+            and not line.startswith(("  var ", "  function ", '  "use strict"'))
+        ]
+        self.assertIn("restoreOlder();", statements)
+
+
+class FormatWarningSummaryTests(TestCase):
+    """總覽最上方列出每個任務的格式警告件數（含其他專案），連到任務頁。"""
+
+    def test_overview_lists_warning_counts(self) -> None:
+        with TemporaryDirectory() as raw:
+            base = Path(raw).resolve()
+            home = progress_folder(base / "home")
+            far = progress_folder(base / "far")
+            put(home, "index.md", listing_board(far))
+            put(home, "clean.md", build_record(stem="clean", title="乾淨"))
+            put(
+                home,
+                "messy.md",
+                build_record(
+                    stem="messy", title="待修", sections={"需要你決定的事": "請決定 X。"}
+                ),
+            )
+            # 少兩個必要區段：2 項警告。
+            missing = {"暫存項目": None, "尚未驗證與已知問題": None}
+            put(far, "away.md", build_record(stem="away", title="對方", sections=missing))
+            page = overview_page(home)
+        section = page.section("格式警告")
+        self.assertIn("format-summary", section.classes())
+        self.assertEqual(page.find("h2", within=section).text(), "格式警告（3 項）")
+        items = [
+            (item.attrs["data-record"], item.attrs.get("data-project", ""), item.text())
+            for item in page.find_all("li", cls="format-item", within=section)
+        ]
+        self.assertEqual(
+            items,
+            [("messy", "", "待修：1 項"), ("away", "far", "far對方：2 項")],
+        )
+        self.assertEqual(hrefs(page, section), ["messy.html"])
+
+    def test_overview_without_warnings_has_no_summary(self) -> None:
+        with TemporaryDirectory() as raw:
+            folder = progress_folder(Path(raw))
+            put(folder, "clean.md", build_record(stem="clean"))
+            page = overview_page(folder)
+        self.assertEqual(page.find_all("section", cls="format-summary"), [])
+
+
+class TrimRulesDocTests(TestCase):
+    """正本寫的門檻與程式一樣；步驟 10 與 13 各重產一次網頁。"""
+
+    def test_progress_record_doc_matches_the_new_limits(self) -> None:
+        text = PROGRESS_RECORD_DOC.read_text(encoding="utf-8")
+        self.assertIn(f"約 {rp.LONG_CELL_CHARS} 字", text)
+        self.assertIn(f"最近 {rp.REVIEW_OPEN_ROWS} 列", text)
+        self.assertIn(rp.UNNUMBERED_FLAG, text)
+        self.assertIn("`.toukadev/progress/archive/`", text)
+        self.assertIn("不得為 `index` 或 `archive`", text)
+
+    def test_delivery_steps_10_and_13_rerender_once_each(self) -> None:
+        text = DELIVERY_DOC.read_text(encoding="utf-8")
+        step10 = text[text.index("## 步驟10") : text.index("## 步驟12")]
+        step13 = text[text.index("## 步驟13") :]
+        for step in (step10, step13):
+            with self.subTest(step=step[:8]):
+                self.assertEqual(step.count("重產一次進度網頁"), 1)
