@@ -94,3 +94,27 @@ class RootToolchainContractTests(TestCase):
         ):
             with self.subTest(command=command):
                 self.assertIn(command, workflow_text)
+
+    def test_dependabot_version_updates_target_dev(self) -> None:
+        # Update PRs follow CONTRIBUTING's branch flow: into dev, never straight
+        # into main. No YAML parser in the dev tools, so check the exact lines.
+        lines = (
+            (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8").splitlines()
+        )
+        sections: list[list[str]] = []
+        for line in lines:
+            if line.startswith("  - package-ecosystem:"):
+                sections.append([line])
+            elif sections:
+                sections[-1].append(line)
+        self.assertEqual(
+            [section[0].split(":", 1)[1].strip().strip('"') for section in sections],
+            ["github-actions", "uv"],
+        )
+        for section in sections:
+            with self.subTest(ecosystem=section[0]):
+                # Same indent as `directory:`, exactly once, nowhere else in the
+                # entry (not nested under schedule or cooldown, not commented out).
+                self.assertIn('    directory: "/"', section)
+                mentions = [line for line in section if "target-branch" in line]
+                self.assertEqual(mentions, ['    target-branch: "dev"'])
