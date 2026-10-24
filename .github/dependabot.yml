@@ -1,0 +1,16 @@
+# Version updates for the framework's own CI actions and dev tools (ADR-048).
+# examples/ is left out: it is scheduled for removal.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7

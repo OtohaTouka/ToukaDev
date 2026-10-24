@@ -22,7 +22,7 @@ ADR-047（含）以前的 ADR 裡的 commit 編號和 PR 編號指開源前的�
 | [ADR-012](ADR-012-Codex單Reviewer兩階段ConsentRequest與精確Receipt.md) | Codex 單 reviewer 兩階段 Consent Request 與精確 Receipt | 已歸檔（由 ADR-033 取代） |
 | [ADR-013](ADR-013-CodexProductionRunner共用PF1Policy.md) | Codex Production Runner 共用 PF-1 Policy | 已歸檔（由 ADR-033 取代） |
 | [ADR-014](ADR-014-Codex對抗式ParentChild契約與純狀態機.md) | Codex 對抗式 Parent／Child 契約與純狀態機 | 已歸檔（由 ADR-033 取代） |
-| [ADR-015](ADR-015-ToukaDev根目錄uv工具鏈與可重現驗證環境.md) | ToukaDev 根目錄 uv 工具鏈與可重現驗證環境 | 已接受 |
+| [ADR-015](ADR-015-ToukaDev根目錄uv工具鏈與可重現驗證環境.md) | ToukaDev 根目錄 uv 工具鏈與可重現驗證環境 | 已接受；D4（uv 版本）由 ADR-048 修訂 |
 | [ADR-016](ADR-016-Codex對抗式ParentConsent與單次Claim.md) | Codex 對抗式 Parent Consent 與單次 Claim | 已歸檔（由 ADR-033 取代） |
 | [ADR-017](ADR-017-Codex對抗式TestOnlyFanout與結算政策.md) | Codex 對抗式 TEST_ONLY Fan-out 與結算政策 | 已歸檔（由 ADR-033 取代） |
 | [ADR-018](ADR-018-Codex對抗式TestOnlyAggregation與少數異議保存.md) | Codex 對抗式 TEST_ONLY Aggregation 與少數異議保存 | 已歸檔（由 ADR-033 取代） |
@@ -55,3 +55,4 @@ ADR-047（含）以前的 ADR 裡的 commit 編號和 PR 編號指開源前的�
 | [ADR-045](ADR-045-第七次改進任務加入asset-workflow美術素材流程.md) | 第七次改進任務：加入 asset-workflow（美術素材流程） | 已接受 |
 | [ADR-046](ADR-046-第八次改進任務扁平指揮與跨工具名詞.md) | 第八次改進任務：扁平指揮與跨工具名詞 | 已接受 |
 | [ADR-047](ADR-047-開源去識別化可改寫有效ADR的原話.md) | 開源去識別化可改寫有效 ADR 的原話 | 已接受 |
+| [ADR-048](ADR-048-開源後給外部讀者的整理.md) | 開源後給外部讀者的整理：共同區塊中性寫法、uv 版本下限與範本釘版 | 已接受 |
