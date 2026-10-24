@@ -14,9 +14,13 @@ README 英文摘要。
 2026-10-24 進度網頁（ADR-046 D8）：步驟 10、13 各重產一次網頁；「需要你決定的事」不是編號項目照樣算待決並警告；
 進行中紀錄的格子超過約 200 字（原話不算）警告；審核紀錄超過 10 列時較早的收合；總覽列出各任務的格式警告件數。
 Dependabot 的版本更新開到 dev（`target-branch`），和其他改動一樣先進 dev 再進 main。
+2026-10-24 第九次改進任務（ADR-049）：asset-workflow 的技術判斷由主代理決定、列進 ART-1，中途只為預算、範圍、受保護規則、
+逐次同意與需求取捨找人類；做量測工具前先試量；專案的 art bible；參考素材放 repo 外的參考庫（L9）；評分看齊全部畫面；L8 改字。
 
 ## 下一步
 
+- 已知限制見 ADR-049：技術判斷改在 ART-1 事後看，推翻時要重做那段；試量的「明顯大於」沒有固定數字；art bible 與參考庫
+  還沒有實際用過；保護區上限與預設做法是否每次寫進一頁計畫，靠計畫審核。
 - setup-uv 10.3.0、ruff 0.17.1 的升級沒做（Dependabot 開到 main 的那兩個 PR 不合併）；Dependabot 可能不再提這兩個版本，
   之後提出更新版時照 ADR-048 D3（沿用 ADR-015 的升級規則）審。
 - 已知限制見 ADR-048：四個 CI 範本沒在各平台的新專案實跑；Bitbucket 用沒有 git 的映像能否 clone 未查證；
@@ -60,6 +64,7 @@ Dependabot 的版本更新開到 dev（`target-branch`），和其他改動一�
 
 ## 精確入口
 
+- [第九次改進任務：asset-workflow 少停下、art bible 與參考庫](docs/adr/ADR-049-第九次改進任務asset-workflow少停下artbible與參考庫.md)
 - [開源後給外部讀者的整理](docs/adr/ADR-048-開源後給外部讀者的整理.md)
 - [貢獻方式](CONTRIBUTING.md)、[回報安全問題](SECURITY.md)
 - [開源去識別化可改寫有效 ADR 的原話](docs/adr/ADR-047-開源去識別化可改寫有效ADR的原話.md)

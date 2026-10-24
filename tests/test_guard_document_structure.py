@@ -183,13 +183,15 @@ IMPROVEMENT_RUN_OBLIGATIONS = tuple(
     )
 )
 # Asset workflow Skill (ADR-045), fixed verbatim from the approved plan v3.2 §6
-# (L1–L8; X1 and X2 approved, so L7' is not used).
+# (L1–L8; X1 and X2 approved, so L7' is not used). ADR-049 rewrote L8 (item 3)
+# and added L9 (item 5) of its approved plan.
 ASSET_SKILL = "asset-workflow/SKILL.md"
 REFERENCE_REVIEW = "asset-workflow/references/reference-review.md"
 ASSET_MANAGEMENT = "asset-workflow/references/asset-management.md"
 ASSET_DOCUMENTS = (ASSET_SKILL, REFERENCE_REVIEW, ASSET_MANAGEMENT)
 # (procedure document that references it, Skill-root-relative template path).
 ASSET_TEMPLATES = (
+    (REFERENCE_REVIEW, "assets/templates/art-bible.md"),
     (REFERENCE_REVIEW, "assets/templates/reference-set.json"),
     (ASSET_MANAGEMENT, "assets/templates/releases.json"),
 )
@@ -237,7 +239,11 @@ ASSET_OBLIGATIONS = (
     ),
     (
         ASSET_SKILL,
-        "ART-0 核可的量測已全數合格、只依主觀評分修改的程式，逐項列在 ART-1 交件中，由人類決定是否接受。",
+        "ART-0 核可的量測已全數合格，或修改只影響 ART-0 核可只用並排與主觀評分的畫面類別時，只依主觀評分修改的程式不必照 dev-workflow 的 TDD，改成逐項列在 ART-1 交件中，由人類決定是否接受。",
+    ),
+    (
+        ASSET_MANAGEMENT,
+        "參考素材本身不進 repo（含 LFS）：放專案宣告的參考庫，repo 只存清單（來源、授權、SHA-256、大小）與量測設定。",
     ),
 )
 # Shared-baseline line in the 文件協議 list of all four AGENTS.md copies. The
@@ -992,7 +998,7 @@ def test_f17_detects_one_character_change_in_asset_workflow_text(
     source: str, locked: str, kind: str
 ) -> None:
     """Changing one visible character at the start, middle or end of any ADR-045
-    locked text (trigger line, checkpoint heading, L1–L8) fails."""
+    locked text (trigger line, checkpoint heading, L1–L9) fails."""
     visible = [index for index, char in enumerate(locked) if not char.isspace()]
     for index in (visible[0], visible[len(visible) // 2], visible[-1]):
         issues = violations_with(source, replace_one_character(locked, index))
