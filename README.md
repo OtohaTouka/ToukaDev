@@ -4,7 +4,8 @@
 
 ToukaDev is a set of five Skills (Markdown procedures plus small Python guard scripts) for building software with
 AI coding agents, including when the human does not read code. Any tool that can read a `SKILL.md` can follow them;
-Claude Code triggers them automatically, and with other tools you ask the agent to follow a Skill.
+Claude Code and Codex pick a Skill from its `SKILL.md` description, and with other tools you ask the agent to follow
+a Skill.
 
 - **project-init**: set up a new or existing project once (requirements interview, stack choice, docs skeleton,
   tests, lint, guards and CI).

@@ -11,12 +11,15 @@ ROOT = Path(__file__).resolve().parents[1]
 CI_TEMPLATES = ROOT / "project-init" / "assets" / "templates" / "ci"
 DOCKERFILE_TEMPLATE = ROOT / "project-init" / "assets" / "templates" / "docker" / "Dockerfile"
 # Personal preferences of the ToukaDev maintainers; they live outside the shared block.
-PERSONAL_PREFERENCES = ("繁體中文", "語氣保持隨性", "客套開場")
+PERSONAL_PREFERENCES = ("繁體中文", "隨性", "言簡意賅", "客套開場", "安全性僅在")
 MAINTAINER_PREFERENCE_LINE = "- 一律使用繁體中文；語氣隨性、言簡意賅，直接給重點，不用客套開場。"
 PINNED_ACTION = re.compile(r"uses: ([\w.-]+/[\w.-]+)@[0-9a-f]{40} # v\d+(\.\d+)*$")
-# A pinned image tag starts with a version number, e.g. `0.12.1-python3.12-trixie-slim`.
-PINNED_IMAGE = re.compile(r"image: [\w./-]+:\d+\.\d+(\.\d+)?[\w.-]*$")
+# Templates outside GitHub Actions run in uv's official image, pinned to a uv and Python version.
+UV_IMAGE = re.compile(r"image: ghcr\.io/astral-sh/uv:\d+\.\d+\.\d+-python\d+\.\d+-[a-z]+-slim$")
+IMAGE_TEMPLATES = ("bitbucket-pipelines.yml", "circleci-config.yml", "gitlab-ci.yml")
 BARE_TOOL = re.compile(r"(^|[-:|]\s*)(pytest|ruff|mkdocs|python)\s")
+PIP_INSTALL = re.compile(r"\bpip[\d.]*\s+install\b")
+UNLOCKED_UV = re.compile(r"\buv (run|sync)\b(?! --locked)")
 
 
 def _active_lines(path: Path) -> list[str]:
@@ -48,17 +51,22 @@ class CiTemplateTests(TestCase):
         for path in sorted(CI_TEMPLATES.iterdir()):
             for line in _active_lines(path):
                 with self.subTest(template=path.name, line=line):
-                    self.assertNotIn("pip install", line)
+                    self.assertIsNone(PIP_INSTALL.search(line), "install with uv")
                     self.assertIsNone(
                         BARE_TOOL.search(line), "run tools through `uv run --locked`"
                     )
+                    self.assertIsNone(UNLOCKED_UV.search(line), "add `--locked`")
 
-    def test_ci_template_images_are_pinned(self) -> None:
-        for path in sorted(CI_TEMPLATES.iterdir()):
-            for line in _active_lines(path):
-                if line.removeprefix("- ").startswith("image:"):
-                    with self.subTest(template=path.name, line=line):
-                        self.assertRegex(line.removeprefix("- "), PINNED_IMAGE)
+    def test_ci_templates_run_in_a_pinned_uv_image(self) -> None:
+        for name in IMAGE_TEMPLATES:
+            images = [
+                line.removeprefix("- ")
+                for line in _active_lines(CI_TEMPLATES / name)
+                if line.removeprefix("- ").startswith("image:")
+            ]
+            with self.subTest(template=name):
+                self.assertEqual(1, len(images))
+                self.assertRegex(images[0], UV_IMAGE)
 
     def test_github_actions_template_pins_actions_and_reads_only(self) -> None:
         lines = _active_lines(CI_TEMPLATES / "github-actions-ci.yml")
