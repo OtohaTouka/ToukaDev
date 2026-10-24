@@ -2,8 +2,9 @@
 
 - 日期：2026-10-24
 - 狀態：已接受（一頁計畫 v2.1 由人類逐條核准：第 1、3 條兩項放寬單獨接受，第 4 條選「下次 ART-0 起必備」，第 2、5～11 條
-  照建議，完成後不跑改進；不做對抗式複審；主代理代審，單一寫入者；實作在本 PR）
-- 修訂：ADR-045 D5（L8）改字；ADR-045 D2「基準存進 `<作品>/reference-set/`」與 D3「基準用 LFS」改成參考庫
+  照建議，完成後不跑改進；第 2 條裡的保護區上限經 DEV-B 判為有條件的放寬後，人類單獨接受；沒命中審核協議 2.1，不做對抗式
+  複審；主代理代審，單一寫入者；實作在本 PR）
+- 修訂：ADR-045 D5（L8）改字；ADR-045 D2、D3 建立的基準存放規則（`<作品>/reference-set/`、LFS）改成參考庫
 - 影響範圍：`asset-workflow/` 的 SKILL、兩份程序、README、兩個範本（新增 `art-bible.md`）；守衛 `scripts/guard_framework.py`
   與 `tests/test_guard_document_structure.py` 的清單；README、術語表 4 份、SSOT 導航、ADR 索引、HANDOVER。
   dev-workflow 與四份共同區塊沒動
@@ -34,14 +35,16 @@
 1. **D1 技術判斷不中途問人類**（第 1 條，放寬，人類單獨核准）：
    - 核心原則加一段：技術判斷由主代理依證據決定，不停下問人類；主代理自己寫的內容照 dev-workflow 交審的人；人類決定美感（三關）、
      需求取捨，以及一頁計畫列出的預算、範圍、授權與預設做法。
-   - 步驟 5：量測寫法、遮罩、量測框、工具做法由主代理決定，記進「替你做的技術決定」交 ART-1；ART-0 之後改的量測規則同時照 L4
+   - 步驟 5：量測寫法、遮罩、量測框（量測寫法的一部分）、工具做法由主代理決定，記進「替你做的技術決定」交 ART-1；ART-0 之後改的量測規則同時照 L4
      標待確認。量測方面的審核意見，寫的人照一頁計畫核准的預設做法修（照審的人的要求改，做不到就把那項指標改成只記錄、回到並排
      與主觀評分），改完照常交審的人確認；一頁計畫沒核准這項、仍不收斂，以及程式缺陷的審核意見，照 dev-workflow。
    - 技術判斷只在下列情況停下問人類：預算或停止線超標；改作品預設外觀、其他已核可作品或範圍外的檔案；受保護規則；planning 3-4
-     不能套預設的逐次同意。停止條件、重過 ART-0、需求取捨與缺少必要證據照常提出。會改變成功標準的事 ART-0 前併進 ART-0。
+     不能套預設的逐次同意；dev-workflow 的不收斂規則要交人類時。停止條件、重過 ART-0、需求取捨與缺少必要證據照常提出。
+     會改變成功標準的事 ART-0 前併進 ART-0。
    - 一頁計畫加「要下載的檔案」「預算」「量測方面審核意見的預設做法」；不必先下載或做工具就能量基準時，一頁計畫和 ART-0 一起交。
    - 下載：預覽寫明「挑中即同意下載挑中的這幾個檔」；預覽以外的檔與參考庫遺失後重新取得的檔另外同意。
-   - 源頭：「需要人類決定的事照常提出」ADR-045 D1；兩輪上限與交人類 ADR-031、ADR-032、ADR-034；寫審分離 ADR-034。
+   - 源頭：「需要人類決定的事照常提出」ADR-045 D1；下載逐項同意 ADR-045 D2；兩輪上限與交人類 ADR-031、ADR-032、ADR-034；
+     寫審分離 ADR-034。
 2. **D2 先試量，再做工具**（第 2 條）：
    - reference-review 新段：正式工具前用拋棄式腳本在作品現況、基準與雜訊底線上試量，分得出缺陷才做工具；分不出的那類在 ART-0
      改用並排與主觀評分；要做新工具時，素材任務的一頁計畫寫指標與預估花費，工具本身另走 dev-workflow；預估比美術修改本身還大時附
@@ -57,8 +60,8 @@
    tag 與時間點。範本 `assets/templates/art-bible.md`。
 5. **D5 參考庫**（第 5 條）：鎖定句 L9。參考素材本身不進 repo（含 LFS），放專案宣告的參考庫（AGENTS.md 或作品 README，不能在
    repo 裡）；`<參考庫>/<作品>/<參考集>/` 加 `SHA256SUMS`、核可後不改；任何清理不碰、不推送不上傳不發佈；備份責任；遺失時依下載
-   同意重新取得並核對；既有 repo 裡的參考檔不再新增，搬移照該專案自己的計畫。五種狀態仍是五種，原始素材分「自己做的」與
-   「外部取得的參考」兩種存法；目錄骨架、LFS 段、範本 `reference-set.json`（`store`、`bytes`、參考庫內路徑）同步。
+   同意重新取得並核對；既有 repo 裡的參考檔不再新增，搬移照該專案自己的計畫。五種狀態仍是五種，原始素材分「自己做的素材」（git、LFS）
+   與「ART-0 的基準與外部取得的參考」（參考庫）兩種存法；目錄骨架、LFS 段、範本 `reference-set.json`（`store`、`bytes`、參考庫內路徑）同步。
 6. **D6 評分看齊全部畫面**（第 6 條）：每一類寫明作品要看哪些畫面與時段；中間各輪可只看一部分但要寫明；交 ART-1 前最後一輪用
    全部重拍、重評，ART-1 的評分以這一輪為準；ART-1 交件寫每項評分看了哪些；範本加 `workWindows`。
 7. **D7 減法**（第 7 條）：SKILL 步驟 5「連續 3 輪…就停」刪掉（reference-review 停止條件原本就有）；SKILL ART-1 交件清單改指向
@@ -72,8 +75,8 @@
 |---|---|---|---|
 | D1 | 技術判斷由主代理決定、人類決定什麼 | `asset-workflow/SKILL.md` | 核心原則末段（L39–40） |
 | D1 | 一頁計畫的下載、預算、預設做法、和 ART-0 一起交 | `asset-workflow/SKILL.md` | 步驟 2（L60–66） |
-| D1 | 技術判斷、預設做法、停下情況、成功標準 | `asset-workflow/SKILL.md` | 步驟 5 第 3～6 子項（L85–92） |
-| D1 | ART-1 一定有替你做的技術決定；禁止清單 | `asset-workflow/SKILL.md` | ART-1（L99）；禁止清單（L128） |
+| D1 | 技術判斷、預設做法、停下情況、成功標準 | `asset-workflow/SKILL.md` | 步驟 5 第 3～6 子項（L85–93） |
+| D1 | ART-1 一定有替你做的技術決定；禁止清單 | `asset-workflow/SKILL.md` | ART-1（L100）；禁止清單（L129） |
 | D1 | 下載同意寫法 | `asset-workflow/references/reference-review.md` | 「挑選基準」第 2 項（L21–23） |
 | D1 | 替你做的技術決定的範圍 | `asset-workflow/references/reference-review.md` | 「ART-1 交件」（L119–120） |
 | D1 | 中途找你的情況 | `asset-workflow/README.md` | 「你會看到的三個審核點」後段 |
@@ -88,26 +91,26 @@
 | D5 | L9 與參考庫段 | `asset-workflow/references/asset-management.md` | 「參考庫」（L71–81） |
 | D5 | 五種狀態、目錄骨架、LFS | `asset-workflow/references/asset-management.md` | L11、L37、L42、L97–98 |
 | D5 | 存放與紀錄 | `asset-workflow/references/reference-review.md` | 「基準的存放與紀錄」（L29–37） |
-| D5 | ART-0 寫入參考庫；禁止 commit 參考檔 | `asset-workflow/SKILL.md` | ART-0 第 2 段（L77–78）；禁止清單（L124–125） |
+| D5 | ART-0 寫入參考庫；禁止 commit 參考檔、清理碰到參考庫 | `asset-workflow/SKILL.md` | ART-0 第 2 段（L77–78）；禁止清單（L126、L135） |
 | D5 | 範本 | `asset-workflow/assets/templates/reference-set.json` | `store`、`bytes`、`file` |
 | D6 | 要看的畫面、最後一輪全部重評、交件 | `asset-workflow/references/reference-review.md` | L42；「每一輪對照」第 3 項（L78–79）；「ART-1 交件」第 3 項 |
 | D6 | ART-0 交件；範本 | `asset-workflow/SKILL.md`、`reference-set.json` | ART-0（L73）；`workWindows` |
 | D7 | 減法 | `asset-workflow/SKILL.md`、`asset-workflow/references/reference-review.md` | 步驟 5、ART-1；「每一輪對照」第 1 項、「量化與主觀的取捨」第 3 項 |
 | — | 守衛與測試清單 | `scripts/guard_framework.py`、`tests/test_guard_document_structure.py` | `REQUIRED_OBLIGATIONS`；`ASSET_OBLIGATIONS`、`ASSET_TEMPLATES` |
-| — | 文件同步 | `README.md`、`glossary.md` 與 3 份複本、`docs/ssot/README.md` | asset-workflow 介紹、流程圖、目錄樹；「參考庫」「art bible」；精確導航兩列 |
+| — | 文件同步 | `README.md`、`glossary.md` 與 3 份複本、`docs/ssot/README.md`、`docs/adr/README.md`、`HANDOVER.md` | asset-workflow 介紹、流程圖、目錄樹；「參考庫」「art bible」；精確導航兩列；ADR-045 修訂註記與 ADR-049 列；目前狀態、下一步、精確入口 |
 
 ## 規則鬆緊與受保護規則
 
-作者與審的人（DEV-A）各自標記；審的人先盲標。
+作者與審的人各自標記；DEV-A 與 DEV-B 都先盲標。DEV-B 和 DEV-A 不同時另寫在同一格。
 
 | 項次 | 改動 | 作者 | 審的人 | 核准方式 |
 |---|---|---|---|---|
 | D1 | 技術判斷不中途問人類、改在 ART-1 看 | 放寬 | 放寬 | 人類單獨核准 |
-| D1 | 量測方面審核意見的預設做法 | 放寬（併在 D1） | 不變（每次由一頁計畫核准，和 dev-workflow 的不收斂規則不衝突） | 同上 |
-| D1 | 下載同意併進挑候選 | 放寬（輕微，併在 D1） | 不變 | 同上 |
+| D1 | 量測方面審核意見的預設做法 | 放寬（併在 D1） | DEV-A 不變（每次由一頁計畫核准，和 dev-workflow 的不收斂規則不衝突）；DEV-B 放寬（有條件） | 同上 |
+| D1 | 下載同意併進挑候選 | 放寬（輕微，併在 D1） | DEV-A 不變；DEV-B 放寬（輕微） | 同上 |
 | D1 | 一頁計畫加下載、預算、預設做法；ART-1 一定列技術決定 | 加嚴 | 加嚴 | 照建議 |
 | D2 | 試量、工具比例、集中度檢查 | 加嚴 | 加嚴 | 照建議 |
-| D2 | 保護區容許範圍改由一頁計畫核可上限 | 加嚴 | 不變 | 照建議 |
+| D2 | 保護區容許範圍改由一頁計畫核可上限 | 加嚴 | DEV-A 不變；DEV-B 放寬（有條件：上限可比逐位元組相同寬） | 人類單獨接受（DEV-B 之後補問；源頭 ADR-045 D2） |
 | D3 | L8 → L8'（兩處） | 放寬 | 放寬 | 人類單獨核准 |
 | D3 | 下一段收窄 | 加嚴 | 加嚴 | 同上 |
 | D4～D6 | art bible、參考庫與 L9、評分涵蓋 | 加嚴 | 加嚴 | 照建議 |
@@ -117,7 +120,7 @@
   「先寫實作再補測試」，照受保護規則單獨列給人類並附源頭。D1 不改寫審分離：寫的人照審的人的要求改或改成只記錄，再交審的人確認；
   dev-workflow 的兩輪上限、第二次 HIGH 交 debug-escalation 與審核協議 2.1 第 7 條都照舊。
 - 鎖定句旁的寫法：asset-management L5 正下方第 2 項加了括號「選用外觀和原版共用同一支程式時，用一頁計畫核可的上限」。這是指向
-  reference-review 的同一正本，上限由人類每次在一頁計畫核可、超過就停，DEV-A 判不放寬。L8' 下一段另起一段，內容是收窄與照常
+  reference-review 的同一正本，上限由人類每次在一頁計畫核可、超過就停；DEV-A 判不放寬，DEV-B 判有條件的放寬，人類單獨接受。L8' 下一段另起一段，內容是收窄與照常
   執行的檢查。計畫審核找過其他鎖定句旁，沒有另加例外。
 
 ## 鎖定句對照
@@ -141,13 +144,13 @@ L1～L7 沒有改或刪；兩條程序觸發行與三個 ART 標題不變。
 
 | 項目 | 估計 | 實際 |
 |---|---|---|
-| 常駐載入的規則 | +13～+22 | +17（asset-workflow SKILL；四份共同區塊與其他 SKILL 0） |
+| 常駐載入的規則 | +13～+22 | +18（asset-workflow SKILL；四份共同區塊與其他 SKILL 0） |
 | asset-workflow 兩份程序 | +38～+60 | +44 |
 | 範本 | +30～+45 | +36 |
 | asset-workflow README | +5～+12 | +7 |
 | 守衛與測試 | +10～+25 | +11（守衛 +5、測試 +6） |
-| README、術語表 4 份、SSOT、ADR 與索引、HANDOVER | +170～+270 | +214（ADR +173、術語表 +32、HANDOVER +5、README +3、索引 +1、SSOT 0） |
-| 整個 repo 淨變化 | +270～+430（淨增超過約 +645 才停） | **+329** |
+| README、術語表 4 份、SSOT、ADR 與索引、HANDOVER | +170～+270 | +217（ADR +176、術語表 +32、HANDOVER +5、README +3、索引 +1、SSOT 0） |
+| 整個 repo 淨變化 | +270～+430（淨增超過約 +645 才停） | **+333** |
 
 ## 不採用與保留觀察
 
