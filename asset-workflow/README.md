@@ -26,7 +26,11 @@
 | ART-2｜成品 | 看過成品後核可；之後才會合併、歸檔與打 tag |
 
 中間的每一輪 AI 自己對照基準，不會請你看圖；每輪的紀錄放在報告裡，你想看隨時可以翻。
-停止線、需要你決定的事、下載與發佈的同意，仍然會找你。
+量測寫法、遮罩、工具做法這類技術判斷 AI 自己決定，列成「替你做的技術決定」放進 ART-1。中途找你的是：
+預算超標、要改作品預設或其他作品、要動範圍外的檔案、受保護的規則、下載與 commit 與發佈這類本來就要逐次同意的事，
+以及停止條件、重過 ART-0、需求取捨與缺少證據；審查意見照預設做法仍談不攏時，照 dev-workflow 的不收斂規則處理。
+
+專案有 art bible（1～2 頁加 6～12 張定錨圖）時，每次 ART-0 只確認這次的參考符合它；還沒有時，第一次 ART-0 會一起提出草稿。
 
 ## 會守住的事
 
@@ -34,14 +38,17 @@
 - 開工後改了量測規則，會同時列出原規則和新規則的結果，你確認前不算達標。
 - 改了共用的素材或程式，所有用到它的已核可作品都會和核可的版本逐段比對。
 - 每一個交付的版本都有能重現它的 tag；tag 只打在合併後、確認能重現的 commit。
-- 無法重新產生的檔案（母帶、基準）不放在可刪的輸出資料夾；成品庫不會被任何清理碰到。
+- 無法重新產生的檔案（母帶、基準）不放在可刪的輸出資料夾；成品庫與參考庫不會被任何清理碰到。
+- 參考影片與圖片不進 repo：放專案宣告的參考庫，repo 只留清單與雜湊。
+- 做量測工具前先用小腳本試量，分不出缺陷的指標不做工具，改用並排與評分。
 
 ## 檔案
 
 - `SKILL.md`：流程本體（AI 讀）。
-- `references/reference-review.md`：挑基準、量測、每輪對照、ART-1 交件。
-- `references/asset-management.md`：檔案的五種狀態、目錄、命名、鎖定、交付與發佈。
-- `assets/templates/reference-set.json`、`assets/templates/releases.json`：基準清單與成品紀錄的範本。
+- `references/reference-review.md`：art bible、挑基準、試量與量測、每輪對照、ART-1 交件。
+- `references/asset-management.md`：檔案的五種狀態、目錄、命名、參考庫、鎖定、交付與發佈。
+- `assets/templates/art-bible.md`、`assets/templates/reference-set.json`、`assets/templates/releases.json`：
+  art bible、基準清單與成品紀錄的範本。
 
 ## 安裝
 

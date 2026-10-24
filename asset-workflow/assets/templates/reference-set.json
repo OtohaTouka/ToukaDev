@@ -1,20 +1,24 @@
 {
   "work": "<作品>",
+  "store": "<參考庫位置，由專案宣告>",
+  "artBible": "<符合的 art bible 版本>",
   "approvedAt": "<ART-0 核可日期>",
   "approval": "<人類原話或核可紀錄的位置>",
   "classes": [
     {
       "id": "<畫面類別，例如 oblique-far>",
       "description": "<鏡頭幾何或段落性質>",
-      "sections": ["<作品中屬於這一類的段落>"]
+      "sections": ["<作品中屬於這一類的段落>"],
+      "workWindows": ["<作品要看的畫面或時段，評分與並排以這些為準>"]
     }
   ],
   "references": [
     {
-      "file": "<作品>/reference-set/<檔名>",
+      "file": "<作品>/<參考集>/<檔名>（參考庫內的路徑）",
       "source": "<來源網址或出處>",
       "license": "<授權名稱與條件>",
       "retrievedAt": "<取得日期>",
+      "bytes": 0,
       "sha256": "<檔案雜湊>",
       "class": "<對應的畫面類別>",
       "window": { "start": "<分析起點>", "end": "<分析終點>" },
@@ -37,7 +41,7 @@
     "threshold": "<ART-0 核可的門檻>"
   },
   "excluded": [
-    { "section": "<不比的段落或指標>", "reason": "<理由，例如刻意風格化>" }
+    { "section": "<不比的段落或指標>", "reason": "<理由，例如刻意風格化、試量分不出缺陷>" }
   ],
   "noiseFloor": { "method": "<同一份程式渲染兩次的比對方式>", "value": "<量到的差異>" },
   "ruleChanges": [

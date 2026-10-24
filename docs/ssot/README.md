@@ -14,8 +14,8 @@
 | 多個執行者與多段計畫／角色／各工具名詞對照／派工對照表 | [多個執行者程序](../../dev-workflow/references/team-roles.md) |
 | 流程問題紀錄（改進紀錄）的觸發、位置與格式 | [記錄程序](../../improvement-loop/references/recording.md) |
 | 人類啟動的改進任務／受保護的規則／一頁計畫 | [改進任務程序](../../improvement-loop/references/improvement-run.md) |
-| 美術素材的參考基準／量測規則修正／每輪對照／ART-1 交件 | [基準與對照程序](../../asset-workflow/references/reference-review.md) |
-| 素材的五種狀態／命名與版本／鎖定／成品庫／交付順序與發佈 | [素材管理程序](../../asset-workflow/references/asset-management.md) |
+| 美術素材的 art bible／參考基準／試量／量測規則修正／每輪對照／ART-1 交件 | [基準與對照程序](../../asset-workflow/references/reference-review.md) |
+| 素材的五種狀態／命名與版本／鎖定／成品庫與參考庫／交付順序與發佈 | [素材管理程序](../../asset-workflow/references/asset-management.md) |
 | INIT-B 後 greenfield 骨架協作／初始化 Debug／完整骨架驗收（選用時才讀） | [初始化協作程序](../../project-init/references/supervised-initialization.md) |
 | 共通品質／Python、React 條件義務／品質分層 | [共同基線](../../AGENTS.md#程式碼品質) |
 

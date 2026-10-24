@@ -732,6 +732,7 @@ REQUIRED_OBLIGATIONS = (
         "改進任務是一般 dev-workflow 任務：一頁計畫逐條給人類核准，照常經過 DEV-A、DEV-B 與授權的 Git 範圍。",
     ),
     # Asset workflow (ADR-045): L1–L8 of the approved plan; X1 and X2 approved.
+    # ADR-049 rewrote L8 (approved item 3) and added L9 (approved item 5).
     (
         "asset-workflow/SKILL.md",
         "美感的標準由人類在 ART-0 核可；中間版本不請人類看圖，人類的美感審核在基準、試作品、成品三關。",
@@ -762,7 +763,11 @@ REQUIRED_OBLIGATIONS = (
     ),
     (
         "asset-workflow/SKILL.md",
-        "ART-0 核可的量測已全數合格、只依主觀評分修改的程式，逐項列在 ART-1 交件中，由人類決定是否接受。",
+        "ART-0 核可的量測已全數合格，或修改只影響 ART-0 核可只用並排與主觀評分的畫面類別時，只依主觀評分修改的程式不必照 dev-workflow 的 TDD，改成逐項列在 ART-1 交件中，由人類決定是否接受。",
+    ),
+    (
+        "asset-workflow/references/asset-management.md",
+        "參考素材本身不進 repo（含 LFS）：放專案宣告的參考庫，repo 只存清單（來源、授權、SHA-256、大小）與量測設定。",
     ),
 )
 # (document, fragment) inside a wrapped list item or paragraph: the item's

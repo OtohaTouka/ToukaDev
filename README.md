@@ -116,6 +116,8 @@ AI 讀累積的紀錄（第一次會問要讀哪些專案），整理成一頁�
 開工前人類和主代理來回確認參考基準（例如十張概念圖、一段實拍影片）與衡量方式（ART-0），之後主代理
 自己對照基準逼近，中間版本不請人類看圖；人類再看試作品（ART-1）與成品（ART-2）。量化通過不等於核可；
 改共用素材要和已核可的作品逐段比對；交付的版本合併、確認能重現並歸檔到成品庫後才打 tag。
+專案的 art bible（1～2 頁加定錨圖）統一風格；量測寫法這類技術判斷由主代理決定、列進 ART-1；
+做量測工具前先試量；參考檔放 repo 外的參考庫，repo 只留清單。
 其中的程式修改仍經 DEV-A、DEV-B 與 commit 授權。程序見
 [基準與對照](asset-workflow/references/reference-review.md) 與 [素材管理與交付](asset-workflow/references/asset-management.md)。
 
@@ -297,9 +299,9 @@ AI 卡住（重複三次相同動作）？
 
 做作品的外觀或素材（影片、插畫、遊戲美術、配樂），要對照參考基準驗收？
   └─ 執行 asset-workflow
-       ├─ [ART-0] 人類和主代理定下參考基準與衡量方式，核准計畫
+       ├─ [ART-0] 人類和主代理定下參考基準（符合 art bible）與衡量方式，核准計畫
        ├─ 主代理自己對照基準逼近（其中的程式修改仍經 DEV-A）
-       ├─ [ART-1] 人類看試作品：並排圖、量化結果、未達標項目
+       ├─ [ART-1] 人類看試作品：並排圖、量化結果、未達標項目、替人類做的技術決定
        ├─ [ART-2] 人類核可成品
        └─ DEV-B 通過後合併，確認能重現並歸檔到成品庫，再打 tag
 ```
@@ -350,12 +352,13 @@ ToukaDev/
 ├── asset-workflow/
 │   ├── README.md
 │   ├── SKILL.md
-│   ├── assets/templates/       ← 基準清單與成品紀錄範本
+│   ├── assets/templates/       ← art bible、基準清單與成品紀錄範本
+│   │   ├── art-bible.md
 │   │   ├── reference-set.json
 │   │   └── releases.json
 │   └── references/             ← 基準對照與素材管理程序
-│       ├── reference-review.md ← 挑基準、量測、每輪對照與 ART-1 交件
-│       └── asset-management.md ← 五種狀態、命名、鎖定、交付與發佈
+│       ├── reference-review.md ← art bible、挑基準、試量與量測、每輪對照與 ART-1 交件
+│       └── asset-management.md ← 五種狀態、命名、參考庫、鎖定、交付與發佈
 ├── docs/
 │   ├── adr/                    ← 框架層架構決策
 │   ├── interface/              ← 框架層介面導航（目前沒有框架層介面）
