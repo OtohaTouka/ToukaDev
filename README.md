@@ -1,5 +1,29 @@
 # Human-AI Collaborative Development Skills
 
+## English summary
+
+ToukaDev is a set of five Skills (Markdown procedures plus small Python guard scripts) for building software with
+AI coding agents, including when the human does not read code. Any tool that can read a `SKILL.md` can follow them;
+Claude Code triggers them automatically, and with other tools you ask the agent to follow a Skill.
+
+- **project-init**: set up a new or existing project once (requirements interview, stack choice, docs skeleton,
+  tests, lint, guards and CI).
+- **dev-workflow**: the 13-step loop for every feature or fix, with TDD, a single source of truth (SSOT), ADRs and two
+  mandatory review points (DEV-A for the plan, DEV-B for the finished change). By default the main agent reviews on
+  the human's behalf once the human approves a one-page plain-language plan; the writer and the reviewer are never
+  the same agent.
+- **debug-escalation**: when an agent hits the same error three times, it stops, hands off, and a fresh context does
+  the root-cause analysis before a reviewed fix.
+- **improvement-loop**: problems with the process itself are recorded; the human starts an improvement run and
+  approves each rule change.
+- **asset-workflow**: for visual and audio assets that are judged against a human-approved reference instead of tests.
+
+The documents are in Traditional Chinese. [Touka](https://github.com/OtohaTouka/Touka) is a project built with this
+method. Installation is copying the Skill folders (see 安裝 below). See [CONTRIBUTING.md](CONTRIBUTING.md) to
+contribute and [SECURITY.md](SECURITY.md) to report a security problem. License: MIT.
+
+---
+
 文件入口：[目前狀態](HANDOVER.md)、[介面導航](docs/interface/README.md)、[SSOT 導航](docs/ssot/README.md#精確導航)。
 已知文件直接讀，未知才查導航；五個 Skills 的詳細程序按階段展開，HUMAN_ONLY 不載入 reviewer 操作手冊。
 
@@ -190,7 +214,7 @@ Skills 是工具無關的（tool-agnostic）。只要工具支援讀取 SKILL.md
 
 根目錄是由 uv 管理的 non-package Python project。Python minor version、uv 版本、測試與靜態檢查
 依賴分別由 `.python-version`、`pyproject.toml` 與 `uv.lock` 管理；不得改用全域 pytest／Ruff 或
-examples 的虛擬環境。
+examples 的虛擬環境。uv 要 0.12.1 以上；CI 固定用 0.12.1。貢獻方式見 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ```bash
 uv sync --locked
@@ -288,6 +312,8 @@ ToukaDev/
 ├── README.md                   ← 你在這裡
 ├── AGENTS.md                   ← 框架層 AI 規則
 ├── HANDOVER.md                 ← 目前狀態與精確入口
+├── CONTRIBUTING.md             ← 貢獻方式（英文與中文）
+├── SECURITY.md                 ← 私下回報安全問題
 ├── pyproject.toml              ← 根目錄 uv、pytest 與 Ruff 設定
 ├── uv.lock                     ← 根目錄鎖定依賴
 ├── .python-version             ← 根目錄 Python minor version
@@ -339,7 +365,8 @@ ToukaDev/
 │   ├── test_render_progress.py ← 進度網頁產生程式測試
 │   ├── test_check_cleanup.py   ← 清理前檢查程式測試
 │   ├── test_tmp_delete.py      ← 暫存資料夾刪除程式（delete_tmp.py）測試
-│   └── test_root_toolchain.py  ← 根目錄 uv 工具鏈契約測試
+│   ├── test_root_toolchain.py  ← 根目錄 uv 工具鏈契約測試
+│   └── test_public_defaults.py ← 共同區塊不含個人偏好、範本的 CI 與 Docker 釘版且用 uv
 ├── scripts/
 │   └── guard_framework.py      ← 框架一致性、AGENTS 命名、共同基線與程序標題檢查
 └── examples/                   ← 範例專案（fastapi-todo-api、line-bot）

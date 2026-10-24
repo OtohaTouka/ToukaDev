@@ -1,8 +1,12 @@
+# 映像釘版本（uv 與 Python 和本機一致）；升級時一起改。
+image: ghcr.io/astral-sh/uv:0.12.1-python3.12-trixie-slim
+
 pipelines:
   default:
     - step:
         name: Test & Lint
         script:
-          - pytest tests/ -v
-          - ruff check .
-          - uv run python scripts/guard_all.py
+          - uv sync --locked
+          - uv run --locked pytest tests/ -v
+          - uv run --locked ruff check .
+          - uv run --locked python scripts/guard_all.py

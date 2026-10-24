@@ -14,7 +14,7 @@ dev = [
 [tool.uv]
 package = false
 cache-dir = ".uv-cache"
-required-version = "==0.12.1"
+required-version = ">=0.12.1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

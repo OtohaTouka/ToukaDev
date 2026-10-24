@@ -1,9 +1,13 @@
+import re
 import tomllib
 from pathlib import Path
 from unittest import TestCase
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# CI installs one exact uv version; local runs accept it or newer (ADR-048).
+CI_UV_VERSION = "0.12.1"
+PINNED_ACTION = re.compile(r"uses: ([\w.-]+/[\w.-]+)@([0-9a-f]{40}) # v\d+(\.\d+)*$")
 
 
 class RootToolchainContractTests(TestCase):
@@ -18,13 +22,19 @@ class RootToolchainContractTests(TestCase):
 
         pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
         self.assertEqual(pyproject["project"]["requires-python"], ">=3.12,<3.13")
+        # Exact pins, not fixed versions, so a dependency update PR can stay green.
+        dev_group = pyproject["dependency-groups"]["dev"]
         self.assertEqual(
-            pyproject["dependency-groups"]["dev"],
-            ["pytest==9.1.1", "ruff==0.16.0"],
+            [entry.split("==")[0] for entry in dev_group], ["pytest", "ruff"]
         )
+        for entry in dev_group:
+            with self.subTest(entry=entry):
+                self.assertRegex(entry, r"^[a-z]+==\d+\.\d+\.\d+$")
         self.assertFalse(pyproject["tool"]["uv"]["package"])
         self.assertEqual(pyproject["tool"]["uv"]["cache-dir"], ".uv-cache")
-        self.assertEqual(pyproject["tool"]["uv"]["required-version"], "==0.12.1")
+        self.assertEqual(
+            pyproject["tool"]["uv"]["required-version"], f">={CI_UV_VERSION}"
+        )
         self.assertEqual(
             pyproject["tool"]["pytest"]["ini_options"]["cache_dir"],
             ".uv-cache/pytest",
@@ -59,15 +69,23 @@ class RootToolchainContractTests(TestCase):
             ROOT / ".github" / "workflows" / "framework-guard.yml"
         ).read_text(encoding="utf-8")
 
-        self.assertIn(
-            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-            workflow_text,
+        # Every action is pinned to a commit SHA with its version as a comment;
+        # the SHA itself may change in an update PR.
+        uses_lines = [
+            line.strip().removeprefix("- ")
+            for line in workflow_text.splitlines()
+            if line.strip().removeprefix("- ").startswith("uses:")
+        ]
+        matches = [PINNED_ACTION.match(line) for line in uses_lines]
+        for line, match in zip(uses_lines, matches):
+            with self.subTest(uses=line):
+                self.assertIsNotNone(match, "actions must be pinned to a commit SHA")
+        self.assertEqual(
+            [match.group(1) for match in matches if match],
+            ["actions/checkout", "astral-sh/setup-uv"],
         )
-        self.assertIn(
-            "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
-            workflow_text,
-        )
-        self.assertIn('version-file: "pyproject.toml"', workflow_text)
+        self.assertIn(f'version: "{CI_UV_VERSION}"', workflow_text)
+        self.assertNotIn("version-file:", workflow_text)
         for command in (
             "uv sync --locked",
             "uv run --locked pytest tests",
