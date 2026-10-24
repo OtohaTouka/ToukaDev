@@ -17,9 +17,8 @@ Dependabot 的版本更新開到 dev（`target-branch`），和其他改動一�
 
 ## 下一步
 
-- setup-uv 10.3.0、ruff 0.17.1 的升級沒做（Dependabot 曾開到 main，已關閉）；Dependabot 可能不再提這兩個版本，之後提出更新版時照
-  ADR-015 的升級規則審。
-
+- setup-uv 10.3.0、ruff 0.17.1 的升級沒做（Dependabot 開到 main 的那兩個 PR 不合併）；Dependabot 可能不再提這兩個版本，
+  之後提出更新版時照 ADR-048 D3（沿用 ADR-015 的升級規則）審。
 - 已知限制見 ADR-048：四個 CI 範本沒在各平台的新專案實跑；Bitbucket 用沒有 git 的映像能否 clone 未查證；
   用舊共同區塊建好的專案不會自動更新；Gherkin 撰寫原則（`planning.md`）與 mkdocs 範本的語言仍是繁體中文，另開任務處理。
   範本裡的 action SHA 與 uv 版本不會由 Dependabot 更新，升級 CI 時手動一起改。

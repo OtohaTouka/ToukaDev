@@ -1,7 +1,7 @@
 # Version updates for the framework's own CI actions and dev tools (ADR-048).
 # examples/ is left out: it is scheduled for removal.
-# Update PRs go to dev, like every other change (CONTRIBUTING.md); GitHub reads
-# this file from the default branch, so edits take effect once dev reaches main.
+# Version-update PRs go to dev, like every other change (CONTRIBUTING.md); GitHub
+# reads this file from the default branch, so edits take effect once dev reaches main.
 version: 2
 updates:
   - package-ecosystem: "github-actions"

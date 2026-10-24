@@ -98,15 +98,19 @@ class RootToolchainContractTests(TestCase):
     def test_dependabot_version_updates_target_dev(self) -> None:
         # Update PRs follow CONTRIBUTING's branch flow: into dev, never straight
         # into main. No YAML parser in the dev tools, so check the exact lines.
-        lines = (
-            (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8").splitlines()
-        )
+        config = ROOT / ".github" / "dependabot.yml"
+        lines = config.read_text(encoding="utf-8").splitlines()
+        # Every item of `updates` starts a section, whatever key it begins with,
+        # so an extra entry cannot hide inside the previous one.
         sections: list[list[str]] = []
         for line in lines:
-            if line.startswith("  - package-ecosystem:"):
+            if line.startswith("  -"):
                 sections.append([line])
             elif sections:
                 sections[-1].append(line)
+        for section in sections:
+            with self.subTest(entry=section[0]):
+                self.assertTrue(section[0].startswith("  - package-ecosystem:"))
         self.assertEqual(
             [section[0].split(":", 1)[1].strip().strip('"') for section in sections],
             ["github-actions", "uv"],
