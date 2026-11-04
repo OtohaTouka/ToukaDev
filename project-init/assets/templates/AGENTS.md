@@ -128,7 +128,7 @@
 
 本專案使用 dev-workflow Skill 定義的 13 步驟流程。相同錯誤或同方向解法重複三次時，立即切換至 debug-escalation Skill。
 
-常駐文件上限：`AGENTS.md` 20 KB、`HANDOVER.md` 8 KB、交班項目 30 天（dev-workflow 步驟 10d；這是預設值，人類在規格確認時可改）。
+常駐文件上限：`AGENTS.md` 20 KB、`HANDOVER.md` 8 KB、交班項目 30 天（dev-workflow 步驟 10d；這是預設值，人類在規格確認時可改）；候選放 `docs/candidates.md`。
 
 ## 技術棧與執行命令
 
