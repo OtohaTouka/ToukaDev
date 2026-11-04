@@ -18,6 +18,7 @@
 | 素材的五種狀態／命名與版本／鎖定／成品庫與參考庫／交付順序與發佈 | [素材管理程序](../../asset-workflow/references/asset-management.md) |
 | INIT-B 後 greenfield 骨架協作／初始化 Debug／完整骨架驗收（選用時才讀） | [初始化協作程序](../../project-init/references/supervised-initialization.md) |
 | 共通品質／Python、React 條件義務／品質分層 | [共同基線](../../AGENTS.md#程式碼品質) |
+| 還沒排進工作的想法與已知缺口 | [候選清單](../candidates.md) |
 
 各列直達下方同名段落；不把全篇當作所有任務的前置讀取。
 
