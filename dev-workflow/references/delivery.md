@@ -23,23 +23,7 @@
 
 **10b-2. 資料庫 Schema 變更確認**
 
-若本次修改了資料庫模型（新增欄位、修改型別、新增或刪除資料表等），必須建立 migration 腳本：
-
-- **Python（SQLAlchemy + Alembic）：**
-  ```bash
-  uv run alembic revision --autogenerate -m "[描述這次的 schema 變更，例如：add email column to users]"
-  uv run alembic upgrade head
-  ```
-  確認 migration 腳本已在 `alembic/versions/` 內，並加入本次 git commit。
-
-- **JavaScript（Prisma）：**
-  ```bash
-  npx prisma migrate dev --name "[描述這次的 schema 變更]"
-  ```
-
-- **若專案還沒設定 migration 工具：** 告知 AI「這次有 schema 變更，請幫我設定 Alembic」（或 Prisma）。
-
-> ⚠️ **新手常見錯誤：** 直接修改資料表結構而不寫 migration，導致正式資料庫與開發資料庫不同步，甚至造成資料遺失。**任何 schema 變更都必須透過 migration 腳本進行。**
+修改了資料庫模型（欄位、型別、資料表）就必須建立 migration 腳本（例如 Python 用 Alembic、JavaScript 用 Prisma），在開發資料庫實際跑過一次，並放進這次 commit；專案還沒有 migration 工具就先設定。任何 schema 變更都透過 migration；直接改資料表會讓正式與開發資料庫不同步，甚至遺失資料。
 
 **10c. ADR**
 - 若本次有重要技術決策，新增一筆 ADR
@@ -50,6 +34,8 @@
 - 只在狀態、阻礙或下一步改變時更新；一般問答與無狀態變化的 typo 不寫交班。
 - 保留精簡現況、未完成事項及精確連結；長期理由寫 ADR、完整事故留原 evidence。
 - 不新增日期交班，不複製歷史或把舊核准當成當次授權。
+- 交班整理：每次要合併進共用分支的候選，在本步驟一起做並過 DEV-B（無狀態變化的 typo 不做）。已完成的現況項目縮成一行，細節移進 CHANGELOG（沒有 CHANGELOG 的專案留在 ADR 或 git 紀錄）；頂層項目寫加入日期，超過專案定的天數還沒動，搬到專案的候選清單或寫明原因。
+- 「精簡」用專案 `AGENTS.md` 定的數字量（字元、位元組或項目數；數字由人類核准，依專案和階段不同；沒定就不查）。常駐文件（每個對話都會載入的規則與交班）超過上限時先整理再交付；整理不下去（再砍就要砍規則，由 DEV-B 核對）時，把大小和建議（拆檔或調高上限）寫進「需要你決定的事」（同一件事只留一項、更新大小），由人類決定，這次交付不必等。
 
 **10e. MkDocs 自動產生文件（僅當專案根目錄有 `mkdocs.yml`；小型專案初始化建立的專案沒有 MkDocs，跳過此項）**
 ```bash
@@ -66,7 +52,7 @@ uv run mkdocs build
 
 整理變更摘要：完成的工作、新增的測試、修改的檔案、SSOT／ADR 影響、已知風險或待處理事項（沒有就寫「無」）；
 需要白話版時依 `references/beginner-guide.md` 的「新手審核版模板」，精簡輸出模式略過。
-變更摘要附 `references/planning.md` 3-4「規模估計與停止線」要求的兩項測試證據（改到的產品程式被測到的比例、故意改壞會變紅的紀錄），並另列測試行數。
+變更摘要附 `references/planning.md` 3-4「規模估計與停止線」要求的兩項測試證據（改到的產品程式被測到的比例、故意改壞會變紅的紀錄），並另列測試行數。有定上限的專案，再附常駐文件這次的大小。
 測試、lint、guard、安全檢查或必要文件仍有 ERROR，或 DEV-B 審核包缺少審核協議 §6 要求的內容時，不得進入 DEV-B。
 
 對話已做 5 個以上完整循環、出現遺忘跡象、要換到完全不同的模組，或剛從 debug-escalation 回來時，

@@ -133,6 +133,8 @@
 | 新增測試案例 | `tests/README.md`（若存在） |
 | 範本、README 目錄樹、glossary 或 SKILL 引用變動 | 執行 `python scripts/guard_framework.py`，零 ERROR 才可 commit |
 
+常駐文件上限（dev-workflow 步驟 10d）：`AGENTS.md` 12 KB、`HANDOVER.md` 8 KB、交班項目 30 天；候選放 `docs/candidates.md`。
+
 ### 按需程序
 
 程序依 SKILL 觸發行按需讀取；F17 檢查步驟與審核點標題、程序觸發行與必要義務句。

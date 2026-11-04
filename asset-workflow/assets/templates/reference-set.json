@@ -3,7 +3,7 @@
   "store": "<參考庫位置，由專案宣告>",
   "artBible": "<符合的 art bible 版本>",
   "approvedAt": "<ART-0 核可日期>",
-  "approval": "<人類原話或核可紀錄的位置>",
+  "approval": "<進度紀錄的任務代號與那一列的時間，不指向會被清掉的暫存；原話要寫進這裡先取得人類同意>",
   "classes": [
     {
       "id": "<畫面類別，例如 oblique-far>",
