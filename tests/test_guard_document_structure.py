@@ -136,6 +136,7 @@ PROGRESS_ASSETS = (
     "assets/progress/render_progress.py",
     "assets/progress/check_cleanup.py",
     "assets/progress/delete_tmp.py",
+    "assets/progress/sync_progress.py",
 )
 # Improvement-loop Skill (ADR-036), fixed verbatim from the approved plan v3 §3.
 SKILLS = (
@@ -1326,6 +1327,7 @@ PROGRESS_RECORD_SAMPLE = (
     "```\n\n"
     "- 先執行 `python <dev-workflow 安裝根>/assets/progress/check_cleanup.py tmp <路徑>`。\n"
     "- 執行 `python -I <dev-workflow 安裝根>/assets/progress/delete_tmp.py <路徑>`。\n"
+    "- 執行 `python -I <dev-workflow 安裝根>/assets/progress/sync_progress.py <資料夾>`。\n"
 )
 
 

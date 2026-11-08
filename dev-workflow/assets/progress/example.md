@@ -15,12 +15,13 @@
 |---|---|---|---|---|---|---|
 | 計畫與計畫審核（DEV-A） | 已完成 | 主代理 | reviewer | — | — | 審 2 輪，第 2 輪通過 |
 | 你核准一頁計畫 | 已完成 | 你 | — | — | — | 13:05 核准 |
-| A：登入頁畫面 | 已合併 | 執行者 A | 主代理 | wt/example-a | 1a2b3c4 | — |
+| A：登入頁畫面 | 已合併 | 執行者 A | 主代理 | wt/example-a | 1a2b3c4 | https://github.com/example/app/pull/12 |
 | B：登入 API | 已驗收 | 執行者 B | 主代理 | wt/example-b | 5d6e7f8 | — |
 | C：錯誤訊息 | 退回修正 | 執行者 C | 主代理 | wt/example-c | 9a8b7c6 | 缺少錯誤情況的測試 |
 | D：鎖帳號 | 執行中（14:10 開始） | 執行者 D | 主代理 | wt/example-d | — | 等你決定次數 |
 | E：說明文件 | 待審 | 執行者 E | 主代理 | wt/example-e | 0f1e2d3 | — |
 | F：整合 | 審核中 | 主代理 | 主代理 | wt/example-f | 4c5b6a7 | 主代理正在核對 A、B 的合併結果 |
+| G：舊瀏覽器相容 | 已移出 | 主代理 | — | — | — | 移到 login-legacy，另開任務處理 |
 | 完成後審核（DEV-B） | 待辦 | — | reviewer | — | — | A–F 都驗收後開始 |
 
 ## 審核紀錄
@@ -40,7 +41,7 @@
 | D 的工作資料夾 | 工作資料夾 | .toukadev/worktrees/example-d | 主代理 | 使用中 | git worktree add |
 | A 的工作資料夾 | 工作資料夾 | .toukadev/worktrees/example-a | 主代理 | 已清理 | git worktree remove |
 | A 的工作分支 | 本機分支 | wt/example-a | 主代理 | 已清理 | git branch -d |
-| B 的遠端分支 | 遠端分支 | wt/example-b | 主代理 | 保留 | PR 還沒合併 |
+| B 的遠端分支 | 遠端分支 | origin/wt/example-b | 主代理 | 保留 | PR 還沒合併 |
 | 本任務暫存資料夾 | 暫存資料夾 | .toukadev/tmp/example | 主代理 | 使用中 | 紅燈 log、試跑輸出 |
 | 瀏覽器測試的下載檔 | 其他 | .toukadev/tmp/example/browser-downloads | 執行者 A | 保留 | 等你決定：不在可自動清理的四種，收尾時列進清理清單 |
 

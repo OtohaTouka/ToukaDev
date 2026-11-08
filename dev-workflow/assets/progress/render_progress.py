@@ -70,9 +70,17 @@ WORK_STATUSES = (
     "已驗收",
     "已合併",
     "已完成",
+    "已移出",
 )
 CHECKED_STATUSES = frozenset({"已驗收", "已合併"})
 NEUTRAL_DONE_STATUSES = frozenset({"已完成"})
+# 工作搬到另一份紀錄繼續：中性顯示，「完成 x／y」的 x、y 都不算；備註開頭要寫「移到 <任務代號>」。
+MOVED_STATUS = "已移出"
+MOVED_NOTE_PATTERN = re.compile(r"移到\s*`?(?P<code>[a-z0-9-]+)`?(?![A-Za-z0-9_])")
+RESERVED_TASK_CODES = frozenset({"index", "archive"})
+# 進行中的紀錄：工作清單至少一列且都完成（含已移出）、暫存都已清理或保留時，提示這句（不是格式警告）。
+DONE_HINT = "可能可以標已結束"
+DONE_MARKS = frozenset({"check", "complete", "moved"})
 TASK_STATES = ("進行中", "已結束")
 RUNNING_STATE = "進行中"
 FINISHED_STATE = "已結束"
@@ -166,6 +174,24 @@ ROW_SPLIT_PATTERN = re.compile(r"(?<!\\)\|")
 SEPARATOR_CELL_PATTERN = re.compile(r"^:?-+:?$")
 CODE_SPAN_PATTERN = re.compile(r"`([^`\n]+)`")
 BOLD_PATTERN = re.compile(r"\*\*(.+?)\*\*")
+
+# ── 比對結果（sync_progress.py 寫、本程式只讀；格式正本見 docs/ssot/README.md）────
+
+SYNC_STATUS_FILENAME = "sync-status.json"
+SYNC_FORMAT = "toukadev-sync-status"
+SYNC_VERSION = 1
+SYNC_MAX_BYTES = 256 * 1024
+SYNC_MAX_FINDINGS = 500
+SYNC_MAX_TEXT = 500
+# 比對時間與紀錄的修改時間的上限（2100-01-01）；超過的整份不採用，免得換算本機時間時出錯。
+SYNC_MAX_EPOCH = 4_102_444_800
+SYNC_MISMATCH = "mismatch"
+SYNC_KINDS = {SYNC_MISMATCH: "對不上", "unchecked": "沒比對", "unreachable": "查不到"}
+SYNC_SECTIONS = (WORK, TEMP)
+SYNC_TOP_KEYS = frozenset({"format", "version", "checked_at", "records", "findings"})
+SYNC_FINDING_KEYS = frozenset({"kind", "record", "section", "row", "item", "message"})
+SYNC_SUMMARY = "和實際狀態對不上"
+SYNC_STALE_TEXT = "比對後紀錄有改過，結果可能過時"
 
 
 # ── 資料結構 ─────────────────────────────────────────────────────
@@ -274,6 +300,29 @@ class RecordView:
         return self.checked_count + self.complete_count
 
     @property
+    def total_count(self) -> int:
+        """「完成 x／y」的 y：「已移出」的列不算。"""
+        return sum(1 for status in self.statuses if status.mark != "moved")
+
+    @property
+    def done_hint(self) -> bool:
+        """進行中、工作清單至少一列且都完成（含已移出）、暫存都已清理或保留。"""
+        if self.record.task_state != RUNNING_STATE or self.work is None:
+            return False
+        if self.temp is None or not self.temp.found:
+            return False
+        statuses = self.statuses
+        temp_done = all(
+            status.base in (CLEANED_STATE, KEPT_STATE) and status.mark != "unknown"
+            for status in self.temp.statuses
+        )
+        return (
+            bool(statuses)
+            and all(status.mark in DONE_MARKS for status in statuses)
+            and temp_done
+        )
+
+    @property
     def temp_kinds(self) -> list[str]:
         if self.temp is None:
             return []
@@ -324,6 +373,33 @@ class SummaryEntry:
 
 
 @dataclass(frozen=True)
+class SyncFinding:
+    kind: str
+    record: str
+    section: str
+    row: int
+    item: str
+    message: str
+
+
+@dataclass(frozen=True)
+class SyncStatus:
+    """sync-status.json 的內容；records 是比對時各紀錄 .md 的修改時間（整數秒）。"""
+
+    checked_at: int
+    records: Mapping[str, int]
+    findings: tuple[SyncFinding, ...]
+
+
+@dataclass(frozen=True)
+class SyncView:
+    """讀到的比對結果；讀不到時 status 是 None、problem 寫原因。"""
+
+    status: SyncStatus | None
+    problem: str | None = None
+
+
+@dataclass(frozen=True)
 class RenderOutcome:
     output: Path
     warnings: tuple[str, ...]
@@ -365,6 +441,7 @@ STATUS_CLASSES = {
     "已驗收": "st-check",
     "已合併": "st-check",
     "已完成": "st-complete",
+    "已移出": "st-moved",
 }
 TEMP_STATE_CLASSES = {"使用中": "t-active", "已清理": "t-cleaned", "保留": "t-kept"}
 TASK_STATE_CLASSES = {"進行中": "st-doing", "已結束": "st-complete"}
@@ -635,6 +712,8 @@ def classify_status(
         return StatusView(raw, base, "check")
     if base in NEUTRAL_DONE_STATUSES:
         return StatusView(raw, base, "complete")
+    if base == MOVED_STATUS:
+        return StatusView(raw, base, "moved")
     return StatusView(raw, base, "none")
 
 
@@ -711,6 +790,7 @@ def analyze_record(record: Record, source_name: str, modified_epoch: int) -> Rec
     if running:
         for table in (work, reviews, temp):
             check_long_cells(table, record.warnings)
+    check_moved_notes(work, record.warnings)
     decisions = analyze_decisions(record.sections.get(DECISIONS))
     check_unnumbered_decisions(decisions, record.warnings)
     view = RecordView(
@@ -765,6 +845,31 @@ def quote_end(text: str, start: int) -> int:
             if depth == 0:
                 return index + 1
     return len(text)
+
+
+def check_moved_notes(table: TableView | None, warnings: list[str]) -> None:
+    """「已移出」的備註開頭要寫「移到 <任務代號>」；同一張表的列號合成一則。"""
+    if table is None:
+        return
+    pairs = zip(table.statuses, table.rows, strict=True)
+    numbers = [
+        str(number)
+        for number, (status, row) in enumerate(pairs, start=1)
+        if status.base == MOVED_STATUS and moved_target(row.get(NOTE_COLUMN, "")) is None
+    ]
+    if numbers:
+        warnings.append(
+            f"{WORK}第 {'、'.join(numbers)} 列是「{MOVED_STATUS}」，但備註開頭不是"
+            "「移到 <任務代號>」：寫明工作搬到哪一份紀錄。"
+        )
+
+
+def moved_target(note: str) -> str | None:
+    """備註開頭「移到 <任務代號>」的代號；不是這種寫法或代號是保留字時回傳 None。"""
+    match = MOVED_NOTE_PATTERN.match(note.strip())
+    if match is None or match["code"] in RESERVED_TASK_CODES:
+        return None
+    return match["code"]
 
 
 def check_unnumbered_decisions(decisions: DecisionView, warnings: list[str]) -> None:
@@ -1003,7 +1108,8 @@ code {
 .older-rows { margin: 0 0 8px; }
 .older-rows > summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
 .decision-flag { margin-left: 6px; }
-.format-summary { border: 2px solid var(--warn-fg); }
+.format-summary, .sync-summary.pending { border: 2px solid var(--warn-fg); }
+.sync-stale { color: var(--warn-fg); font-weight: 600; }
 footer { color: var(--muted); font-size: 0.85rem; margin-top: 24px; }
 a { color: var(--info-fg); }
 .nav { margin: 0 0 8px; font-size: 0.9rem; }
@@ -1436,7 +1542,17 @@ def render_now_items(view: RecordView) -> str:
     """只有進行中的紀錄才列；總覽與任務頁共用同一份判斷。"""
     if view.record.task_state != RUNNING_STATE:
         return ""
-    return "".join(render_now_item(status, row) for status, row in now_and_next(view))
+    items = "".join(render_now_item(status, row) for status, row in now_and_next(view))
+    if view.done_hint:
+        items += (
+            f'<li class="done-item">{done_hint_chip("chip")} 工作清單都完成、暫存都已清理或保留；'
+            "確認沒有剩下的事，就把任務狀態改成「已結束」。</li>"
+        )
+    return items
+
+
+def done_hint_chip(kind: str) -> str:
+    return f'<span class="{kind} st-complete done-hint">{esc(DONE_HINT)}</span>'
 
 
 def render_now_item(status: StatusView, row: Mapping[str, str]) -> str:
@@ -1469,7 +1585,7 @@ def render_decisions(decisions: DecisionView) -> str:
 
 
 def work_summary(view: RecordView) -> str:
-    text = f"完成 {view.done_count}／{len(view.statuses)} 項"
+    text = f"完成 {view.done_count}／{view.total_count} 項"
     if view.done_count:
         text += f"・其中 {view.checked_count} 項經驗收或合併"
     return f'<p class="meta work-summary">{esc(text)}</p>'
@@ -1535,8 +1651,9 @@ def render_index_page(
     result: FolderResult,
     board: Board | None,
     others: Sequence[SummaryEntry],
+    sync: SyncView | None = None,
 ) -> str:
-    """自動彙總先列本專案，再照總覽板的順序列其他專案。"""
+    """自動彙總先列本專案，再照總覽板的順序列其他專案；比對結果放最上面。"""
     ordered = sort_views(views)
     entries = [
         SummaryEntry(view, overview_title(view.record.stem, view.record.title))
@@ -1547,6 +1664,7 @@ def render_index_page(
         [
             "<header><h1>進度總覽</h1></header>\n",
             render_folder_notices(result),
+            render_sync_summary(sync, views),
             render_decision_summary(entries),
             render_format_summary(entries),
             render_now_next_summary(entries),
@@ -1558,6 +1676,58 @@ def render_index_page(
         ]
     )
     return render_document("進度總覽", body)
+
+
+def render_sync_summary(sync: SyncView | None, views: Sequence[RecordView]) -> str:
+    """比對結果：對不上的逐項列出；沒比對、查不到的收合在下面。文字一律跳脫，不產生連結。"""
+    if sync is None:
+        return ""
+    if sync.status is None:
+        opening = open_section(SYNC_SUMMARY, "sync-summary", ' data-count="unknown"')
+        return (
+            f"{opening}<h2>{esc(SYNC_SUMMARY)}</h2>"
+            f"<p>讀不到比對結果：{esc(sync.problem or '')}</p></section>\n"
+        )
+    status = sync.status
+    mismatches = [item for item in status.findings if item.kind == SYNC_MISMATCH]
+    others = [item for item in status.findings if item.kind != SYNC_MISMATCH]
+    count = len(mismatches)
+    heading = f"{SYNC_SUMMARY}（{count} 項）" if count else SYNC_SUMMARY
+    css = "sync-summary pending" if count else "sync-summary"
+    stamp = render_age_stamp(status.checked_at, "off", "比對時間：")
+    parts = [
+        open_section(SYNC_SUMMARY, css, f' data-count="{count}"'),
+        f"<h2>{esc(heading)}</h2><p class=\"meta\">{stamp}</p>",
+    ]
+    if sync_is_stale(status, views):
+        parts.append(f'<p class="sync-stale">⚠ {esc(SYNC_STALE_TEXT)}：重跑一次比對再看。</p>')
+    if mismatches:
+        items = "".join(render_sync_item(item, "sync-item", "") for item in mismatches)
+        parts.append(f'<ul class="summary-list">{items}</ul>')
+    else:
+        parts.append("<p>都對得上：沒有發現紀錄和實際狀態不一樣的地方。</p>")
+    if others:
+        items = "".join(
+            render_sync_item(item, "sync-other", f"【{SYNC_KINDS[item.kind]}】")
+            for item in others
+        )
+        parts.append(
+            f'<details class="older-rows"><summary>另有 {len(others)} 列沒比對或查不到</summary>'
+            f'<ul class="summary-list">{items}</ul></details>'
+        )
+    parts.append("</section>\n")
+    return "".join(parts)
+
+
+def render_sync_item(item: SyncFinding, css: str, label: str) -> str:
+    text = f"{label}{item.record}：{item.section}第 {item.row} 列「{item.item}」：{item.message}"
+    return f'<li class="{css}" data-record="{esc(item.record)}">{esc(text)}</li>'
+
+
+def sync_is_stale(status: SyncStatus, views: Sequence[RecordView]) -> bool:
+    """比對之後有紀錄改過、新增或不見時，結果可能過時。"""
+    current = {view.record.stem: view.modified_epoch for view in views}
+    return current != dict(status.records)
 
 
 def render_decision_summary(entries: Sequence[SummaryEntry]) -> str:
@@ -1714,6 +1884,8 @@ def overview_name_cell(view: RecordView) -> str:
         badges = (
             f'<span class="badge badge-unknown">⚠ 格式警告 {len(view.warnings)}</span>'
         )
+    if view.done_hint:
+        badges += done_hint_chip("badge")
     return (
         f'<td class="name"><strong>{overview_title(record.stem, record.title)}</strong>'
         f'{badges}<span class="file">網頁：{esc(record.stem)}.html</span></td>'
@@ -1747,7 +1919,7 @@ def overview_progress_cell(view: RecordView) -> str:
             '<td class="progress" data-checked="unknown" data-total="unknown" '
             'data-complete="unknown">— 缺少工作清單</td>'
         )
-    total = len(view.statuses)
+    total = view.total_count
     extra = f'<span class="file">其中 {view.checked_count} 項經驗收或合併</span>'
     return (
         f'<td class="progress" data-checked="{view.checked_count}" data-total="{total}" '
@@ -1993,12 +2165,101 @@ def write_index(
     output = folder / INDEX_FILENAME
     board = load_board(board_path, result)
     others = read_other_projects(board, folder, result)
+    sync = read_sync_status(folder)
     try:
-        write_page(output, render_index_page(views, result, board, others))
+        write_page(output, render_index_page(views, result, board, others, sync))
     except RenderError as error:
         result.failures.append(str(error))
     else:
         result.outputs.append(output)
+
+
+# ── 比對結果（只讀）─────────────────────────────────────────────
+
+
+class SyncFormatError(ValueError):
+    """sync-status.json 的內容不合格式。"""
+
+
+def read_sync_status(folder: Path) -> SyncView | None:
+    """沒有檔案時回傳 None；連結、不是一般檔案、太大或格式不對時只回傳原因。"""
+    path = folder / SYNC_STATUS_FILENAME
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        return SyncView(None, f"讀不到 {SYNC_STATUS_FILENAME}（{error}）")
+    problem = entry_problem(path, False)
+    if problem is not None:
+        return SyncView(None, problem)
+    if info.st_size > SYNC_MAX_BYTES:
+        return SyncView(None, f"{SYNC_STATUS_FILENAME} 超過 {SYNC_MAX_BYTES} 位元組")
+    try:
+        with path.open("rb") as handle:
+            raw = handle.read(SYNC_MAX_BYTES + 1)
+        if len(raw) > SYNC_MAX_BYTES:
+            raise SyncFormatError(f"超過 {SYNC_MAX_BYTES} 位元組")
+        return SyncView(parse_sync_payload(json.loads(raw.decode("utf-8"))))
+    except OSError as error:
+        return SyncView(None, f"讀不到 {SYNC_STATUS_FILENAME}（{error}）")
+    except RecursionError:
+        return SyncView(None, f"{SYNC_STATUS_FILENAME} 格式不對（巢狀太深）")
+    except ValueError as error:
+        # 含 UnicodeDecodeError、JSONDecodeError、SyncFormatError 與太長的整數。
+        return SyncView(None, f"{SYNC_STATUS_FILENAME} 格式不對（{type(error).__name__}）")
+
+
+def parse_sync_payload(data: object) -> SyncStatus:
+    """欄位、型別、長度與件數都要剛好符合；任何一項不符就整份不採用。"""
+    if not isinstance(data, dict) or set(data) != SYNC_TOP_KEYS:
+        raise SyncFormatError("最外層的欄位不對")
+    if data["format"] != SYNC_FORMAT or not is_plain_int(data["version"]):
+        raise SyncFormatError("格式名稱或版本不對")
+    if data["version"] != SYNC_VERSION:
+        raise SyncFormatError(f"版本 {data['version']} 不認得")
+    if not is_epoch(data["checked_at"]):
+        raise SyncFormatError("比對時間不對")
+    records = data["records"]
+    if not isinstance(records, dict) or len(records) > SYNC_MAX_FINDINGS:
+        raise SyncFormatError("紀錄清單不對")
+    for stem, modified in records.items():
+        if not is_short_text(stem) or not is_epoch(modified):
+            raise SyncFormatError("紀錄清單不對")
+    findings = data["findings"]
+    if not isinstance(findings, list) or len(findings) > SYNC_MAX_FINDINGS:
+        raise SyncFormatError("結果清單不對或太多項")
+    return SyncStatus(
+        data["checked_at"], dict(records), tuple(parse_sync_finding(item) for item in findings)
+    )
+
+
+def parse_sync_finding(item: object) -> SyncFinding:
+    if not isinstance(item, dict) or set(item) != SYNC_FINDING_KEYS:
+        raise SyncFormatError("結果的欄位不對")
+    if item["kind"] not in SYNC_KINDS or item["section"] not in SYNC_SECTIONS:
+        raise SyncFormatError("結果的類別或區段不對")
+    if not is_plain_int(item["row"]) or item["row"] < 1:
+        raise SyncFormatError("結果的列號不對")
+    texts = (item["record"], item["item"], item["message"])
+    if not all(is_short_text(text) for text in texts):
+        raise SyncFormatError("結果的文字不對或太長")
+    return SyncFinding(
+        item["kind"], item["record"], item["section"], item["row"], item["item"], item["message"]
+    )
+
+
+def is_plain_int(value: object) -> bool:
+    """bool 也是 int 的子類別，這裡不算。"""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_epoch(value: object) -> bool:
+    return is_plain_int(value) and 0 <= value <= SYNC_MAX_EPOCH  # type: ignore[operator]
+
+
+def is_short_text(value: object) -> bool:
+    return isinstance(value, str) and len(value) <= SYNC_MAX_TEXT
 
 
 # ── 其他專案（只讀）─────────────────────────────────────────────
