@@ -106,6 +106,16 @@ AI 可自動清理的項目與刪法只以正本列出的為準。暫存資料�
 [ADR-037](../adr/ADR-037-第一次改進任務暫存範圍唯讀刪法與進度網頁.md)、
 [ADR-038](../adr/ADR-038-第二次改進任務減法與獨立刪除腳本.md)。
 
+比對紀錄和實際狀態的程式是 `dev-workflow/assets/progress/sync_progress.py`：比對與 `--apply` 的條件以正本
+「比對實際狀態」為準；紀錄解析、狀態值與比對結果的常數都用同資料夾的 `render_progress.py`，共用分支名單用同資料夾的
+`check_cleanup.py`，不另寫一份。
+結果檔 `.toukadev/progress/sync-status.json`（UTF-8 JSON，最多 256 KiB）由比對程式寫、網頁只讀，欄位剛好是：
+`format`（固定 `toukadev-sync-status`）、`version`（整數 1）、`checked_at`（比對時間，epoch 秒）、
+`records`（最多 500 份；任務代號 → 比對時那份 `.md` 的修改時間，整數秒）、`findings`（最多 500 項，每項剛好有 `kind`：
+`mismatch`／`unchecked`／`unreachable`，`record`、`section`：「工作清單」或「暫存項目」，`row`：從 1 起算的列號，
+`item`、`message`）。文字每格最多 500 字；時間都是 0 到 2100-01-01 之間的整數秒。任何欄位不合，網頁整份不採用、只顯示原因。
+`tests/test_sync_progress.py` 鎖住比對、`--apply` 與結果格式，決策見 [ADR-051](../adr/ADR-051-第十一次改進任務進度比對與叫醒外部紅燈.md)。
+
 ## 改進紀錄與改進任務
 
 流程問題紀錄（什麼要記、誰記、位置與檔名、格式、找重複、狀態權限、隱私、何時提醒）的唯一正本為：

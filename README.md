@@ -333,6 +333,7 @@ ToukaDev/
 │   │   ├── render_progress.py  ← 把進度紀錄轉成網頁（Python 標準函式庫）
 │   │   ├── check_cleanup.py    ← 清理前檢查（只檢查、不刪除）
 │   │   ├── delete_tmp.py       ← 刪除本任務的暫存資料夾（刪前自己重跑清理前檢查）
+│   │   ├── sync_progress.py    ← 比對紀錄和 git、GitHub 的實際狀態（只讀；主代理可補固定欄位）
 │   │   └── example.md          ← 進度紀錄範例
 │   └── references/             ← 審核協議、按需程序、安全清單
 │       ├── progress-record.md  ← 進度紀錄格式、進度網頁與暫存清理
@@ -369,6 +370,7 @@ ToukaDev/
 │   ├── test_render_progress.py ← 進度網頁產生程式測試
 │   ├── test_check_cleanup.py   ← 清理前檢查程式測試
 │   ├── test_tmp_delete.py      ← 暫存資料夾刪除程式（delete_tmp.py）測試
+│   ├── test_sync_progress.py   ← 進度比對程式（sync_progress.py）測試
 │   ├── test_root_toolchain.py  ← 根目錄 uv 工具鏈契約測試
 │   └── test_public_defaults.py ← 共同區塊不含個人偏好、範本的 CI 與 Docker 釘版且用 uv
 ├── scripts/

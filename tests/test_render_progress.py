@@ -392,6 +392,7 @@ class FormatContractTests(TestCase):
                 "已驗收",
                 "已合併",
                 "已完成",
+                "已移出",
             ),
         )
         self.assertEqual(rp.CHECKED_STATUSES, frozenset({"已驗收", "已合併"}))
@@ -493,6 +494,10 @@ class ExampleRenderingTests(TestCase):
                 elif status == "已完成":
                     self.assertEqual(row.attrs["data-mark"], "complete")
                     self.assertEqual(mark_cell.text().strip(), "完成")
+                    self.assertNotIn("✔", row.text())
+                elif status == "已移出":
+                    self.assertEqual(row.attrs["data-mark"], "moved")
+                    self.assertEqual(mark_cell.text().strip(), "")
                     self.assertNotIn("✔", row.text())
                 else:
                     self.assertEqual(row.attrs["data-mark"], "none")
@@ -3081,3 +3086,279 @@ class TrimRulesDocTests(TestCase):
         for step in (step10, step13):
             with self.subTest(step=step[:8]):
                 self.assertEqual(step.count("重產一次進度網頁"), 1)
+
+
+# ── 已移出、可能可以標已結束、比對結果（ADR-051）────────────────────
+
+DONE_TEMP_TABLE = """\
+| 項目 | 類型 | 位置 | 建立者 | 狀態 | 備註 |
+|---|---|---|---|---|---|
+| 本任務暫存資料夾 | 暫存資料夾 | .toukadev/tmp/{stem} | 主代理 | 已清理 | — |
+| 遠端分支 | 遠端分支 | origin/wt/{stem} | 主代理 | 保留 | 等你決定：已合併，可以刪。 |"""
+
+
+def moved_record(
+    note: str, *, state: str = "進行中", temp: str | None = None, extra_row: str = ""
+) -> str:
+    rows = [("規劃", "已完成", "—"), ("A：搬走", "已移出", note), ("B：功能", "已合併", "—")]
+    table = work_table(*rows)
+    if extra_row:
+        table += "\n" + extra_row
+    sections: dict[str, str | None] = {"工作清單": table}
+    if temp is not None:
+        sections["暫存項目"] = temp
+    return build_record(state=state, sections=sections)
+
+
+def single_overview(text: str, stem: str = "demo") -> Page:
+    with TemporaryDirectory() as raw:
+        folder = progress_folder(Path(raw))
+        put(folder, f"{stem}.md", text)
+        return overview_page(folder)
+
+
+class MovedStatusTests(TestCase):
+    def test_moved_is_the_last_listed_status(self) -> None:
+        self.assertEqual(rp.MOVED_STATUS, "已移出")
+        self.assertEqual(rp.WORK_STATUSES[-1], rp.MOVED_STATUS)
+
+    def test_moved_row_is_neutral_and_left_out_of_both_counts(self) -> None:
+        with RepoSandbox() as sandbox:
+            page = sandbox.render(moved_record("移到 other-task 繼續"))
+        row = page.find("tr", cls="work-row", attrs={"data-status": "已移出"})
+        self.assertEqual(row.attrs["data-mark"], "moved")
+        self.assertTrue(page.find_all("span", cls="st-moved", within=row))
+        self.assertNotIn("✔", page.find("td", cls="mark", within=row).text())
+        self.assertEqual(
+            page.find("p", cls="work-summary").text(),
+            "完成 2／2 項・其中 1 項經驗收或合併",
+        )
+        self.assertEqual(page.warnings(), [])
+
+    def test_note_must_start_with_a_valid_task_code(self) -> None:
+        cases = {
+            "移到 other-task": True,
+            "移到 `other-task`，接著做": True,
+            "移到other-task": True,
+            "  移到 other-task": True,
+            "搬到 other-task": False,
+            "移到 index": False,
+            "移到 archive": False,
+            "移到 Fix-2C": False,
+            "移到": False,
+            "—": False,
+            "原因：移到 other-task": False,
+        }
+        for note, valid in cases.items():
+            with self.subTest(note=note), RepoSandbox() as sandbox:
+                page = sandbox.render(moved_record(note))
+                moved = [w for w in page.warnings() if rp.MOVED_STATUS in w]
+                self.assertEqual(moved == [], valid, moved)
+
+    def test_overview_progress_leaves_out_moved_rows(self) -> None:
+        page = single_overview(moved_record("移到 other"))
+        cell = page.find("td", cls="progress")
+        self.assertEqual(cell.attrs["data-total"], "2")
+        self.assertIn("完成 2／2", cell.text())
+
+    def test_doc_defines_moved_with_the_other_done_states(self) -> None:
+        text = PROGRESS_RECORD_DOC.read_text(encoding="utf-8")
+        self.assertIn("「已移出」", text)
+        self.assertIn("移到 <任務代號>", text)
+        self.assertIn("格式警告只有八類", text)
+
+
+class DoneHintTests(TestCase):
+    def test_running_record_with_everything_done_gets_the_hint(self) -> None:
+        page = single_overview(moved_record("移到 other", temp=DONE_TEMP_TABLE))
+        section = page.section("現在／下一步")
+        hint = page.find("span", cls="done-hint", within=section)
+        self.assertEqual(hint.text(), rp.DONE_HINT)
+        row = page.find("tr", cls="overview-row")
+        self.assertTrue(page.find_all("span", cls="done-hint", within=row))
+        # 提示不是格式警告。
+        self.assertEqual(page.find_all("section", cls="format-summary"), [])
+
+    def test_record_page_shows_the_hint_too(self) -> None:
+        with RepoSandbox() as sandbox:
+            page = sandbox.render(moved_record("移到 other", temp=DONE_TEMP_TABLE))
+        section = page.section("現在／下一步")
+        self.assertEqual(page.find("span", cls="done-hint", within=section).text(), rp.DONE_HINT)
+        self.assertEqual(page.warnings(), [])
+
+    def test_hint_needs_every_condition(self) -> None:
+        open_temp = DONE_TEMP_TABLE + "\n| 工作資料夾 | 工作資料夾 | .toukadev/worktrees/x | 主代理 | 使用中 | — |"
+        odd_temp = DONE_TEMP_TABLE + "\n| 其他 | 其他 | x | 主代理 | 不知道 | — |"
+        todo_row = "| C：收尾 | 待辦 | 主代理 | — | — | — | — |"
+        odd_row = "| C：奇怪 | 做到一半 | 主代理 | — | — | — | — |"
+        empty_work = "\n".join(WORK_TABLE.splitlines()[:2])
+        cases = {
+            "全部做完": (moved_record("移到 other", temp=DONE_TEMP_TABLE), True),
+            "暫存還在用": (moved_record("移到 other", temp=open_temp), False),
+            "暫存狀態看不懂": (moved_record("移到 other", temp=odd_temp), False),
+            "還有待辦": (moved_record("移到 other", temp=DONE_TEMP_TABLE, extra_row=todo_row), False),
+            "狀態看不懂": (moved_record("移到 other", temp=DONE_TEMP_TABLE, extra_row=odd_row), False),
+            "已結束": (moved_record("移到 other", state="已結束", temp=DONE_TEMP_TABLE), False),
+            "工作清單沒有列": (
+                build_record(sections={"工作清單": empty_work, "暫存項目": DONE_TEMP_TABLE}),
+                False,
+            ),
+            "缺暫存項目": (build_record(sections={"工作清單": work_table(("A", "已合併", "—")), "暫存項目": None}), False),
+        }
+        for name, (text, expected) in cases.items():
+            with self.subTest(case=name):
+                page = single_overview(text)
+                self.assertEqual(bool(page.find_all("span", cls="done-hint")), expected)
+
+
+SYNC_RECORD_MTIME = RECORD_MTIME
+
+
+def sync_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "format": "toukadev-sync-status",
+        "version": 1,
+        "checked_at": NOW - 120,
+        "records": {"demo": SYNC_RECORD_MTIME},
+        "findings": [],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def finding(kind: str = "mismatch", **overrides: object) -> dict[str, object]:
+    item: dict[str, object] = {
+        "kind": kind,
+        "record": "demo",
+        "section": "工作清單",
+        "row": 2,
+        "item": "A：功能",
+        "message": "PR 已合併，狀態卻是執行中",
+    }
+    item.update(overrides)
+    return item
+
+
+class SyncStatusDisplayTests(TestCase):
+    def overview(self, payload: object = None, raw: bytes | None = None, mtime: int = SYNC_RECORD_MTIME) -> Page:
+        with TemporaryDirectory() as tmp:
+            folder = progress_folder(Path(tmp))
+            put(folder, "demo.md", build_record(stem="demo"), mtime=mtime)
+            if raw is None and payload is not None:
+                raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            if raw is not None:
+                (folder / rp.SYNC_STATUS_FILENAME).write_bytes(raw)
+            return overview_page(folder)
+
+    def test_no_file_means_no_section(self) -> None:
+        page = self.overview()
+        self.assertEqual(page.find_all("section", cls="sync-summary"), [])
+
+    def test_mismatches_are_listed_first_and_escaped_without_links(self) -> None:
+        bad = finding(message="<b>壞</b> https://github.com/o/r/pull/9", item="<i>x</i>")
+        page = self.overview(sync_payload(findings=[bad, finding(row=3)]))
+        section = page.section(rp.SYNC_SUMMARY)
+        self.assertIn("sync-summary", section.classes())
+        self.assertEqual(section.attrs.get("data-count"), "2")
+        self.assertEqual(page.find("h2", within=section).text(), f"{rp.SYNC_SUMMARY}（2 項）")
+        self.assertEqual(page.find_all("b", within=section), [])
+        self.assertEqual(page.find_all("i", within=section), [])
+        self.assertEqual(page.find_all("a", within=section), [])
+        items = page.find_all("li", cls="sync-item", within=section)
+        self.assertEqual(len(items), 2)
+        self.assertIn("<b>壞</b>", items[0].text())
+        self.assertIn("工作清單第 2 列", items[0].text())
+        # 彙總放在最上面：在「要你決定」之前。
+        order = [node.attrs.get("data-section") for node in page.find_all("section")]
+        self.assertLess(order.index(rp.SYNC_SUMMARY), order.index("要你決定"))
+
+    def test_unchecked_and_unreachable_rows_are_listed_apart(self) -> None:
+        page = self.overview(
+            sync_payload(
+                findings=[
+                    finding("unchecked", message="同一個分支有兩個 PR"),
+                    finding("unreachable", message="gh 沒登入"),
+                ]
+            )
+        )
+        section = page.section(rp.SYNC_SUMMARY)
+        self.assertEqual(section.attrs.get("data-count"), "0")
+        self.assertEqual(page.find_all("li", cls="sync-item", within=section), [])
+        others = page.find_all("li", cls="sync-other", within=section)
+        self.assertEqual(len(others), 2)
+        self.assertIn("沒比對", others[0].text())
+        self.assertIn("查不到", others[1].text())
+
+    def test_all_matched_says_so_with_the_check_time(self) -> None:
+        page = self.overview(sync_payload())
+        section = page.section(rp.SYNC_SUMMARY)
+        self.assertIn("都對得上", section.text())
+        stamp = page.find("span", cls="age-stamp", within=section)
+        self.assertEqual(stamp.attrs["data-epoch"], str(NOW - 120))
+        self.assertEqual(page.find_all("p", cls="sync-stale", within=section), [])
+
+    def test_record_changed_after_the_check_is_flagged(self) -> None:
+        cases = {
+            "改過": (sync_payload(), SYNC_RECORD_MTIME + 5),
+            "新紀錄沒比對過": (sync_payload(records={}), SYNC_RECORD_MTIME),
+            "比對過的紀錄不見了": (
+                sync_payload(records={"demo": SYNC_RECORD_MTIME, "gone": 1}),
+                SYNC_RECORD_MTIME,
+            ),
+        }
+        for name, (payload, mtime) in cases.items():
+            with self.subTest(case=name):
+                page = self.overview(payload, mtime=mtime)
+                section = page.section(rp.SYNC_SUMMARY)
+                stale = page.find("p", cls="sync-stale", within=section)
+                self.assertIn(rp.SYNC_STALE_TEXT, stale.text())
+
+    def test_bad_files_show_only_the_reason(self) -> None:
+        too_long = "長" * (rp.SYNC_MAX_TEXT + 1)
+        cases: dict[str, bytes] = {
+            "不是 JSON": b"{not json",
+            "不是 UTF-8": b"\xff\xfe\x00",
+            "不是物件": b"[]",
+            "格式名稱不對": json.dumps(sync_payload(format="other")).encode(),
+            "版本不對": json.dumps(sync_payload(version=2)).encode(),
+            "時間不是整數": json.dumps(sync_payload(checked_at="now")).encode(),
+            "布林不算整數": json.dumps(sync_payload(checked_at=True)).encode(),
+            "紀錄時間不對": json.dumps(sync_payload(records={"demo": "x"})).encode(),
+            "類別不對": json.dumps(sync_payload(findings=[finding("other")])).encode(),
+            "列號不對": json.dumps(sync_payload(findings=[finding(row=0)])).encode(),
+            "區段不對": json.dumps(sync_payload(findings=[finding(section="其他")])).encode(),
+            "文字太長": json.dumps(sync_payload(findings=[finding(message=too_long)])).encode(),
+            "多出欄位": json.dumps(sync_payload(findings=[finding(extra=1)])).encode(),
+            "太多項": json.dumps(
+                sync_payload(findings=[finding()] * (rp.SYNC_MAX_FINDINGS + 1))
+            ).encode(),
+            "檔案太大": b" " * (rp.SYNC_MAX_BYTES + 1),
+            "整數太長": b'{"format": "toukadev-sync-status", "version": 1, "checked_at": ' + b"9" * 5000 + b"}",
+            "巢狀太深": b"[" * 100_000 + b"]" * 100_000,
+            "比對時間太大": json.dumps(sync_payload(checked_at=10**20)).encode(),
+            "紀錄時間太大": json.dumps(sync_payload(records={"demo": 10**20})).encode(),
+        }
+        for name, raw in cases.items():
+            with self.subTest(case=name):
+                page = self.overview(raw=raw)
+                section = page.section(rp.SYNC_SUMMARY)
+                self.assertIn("讀不到比對結果", section.text())
+                self.assertEqual(page.find_all("li", cls="sync-item", within=section), [])
+
+    def test_link_is_not_followed(self) -> None:
+        with TemporaryDirectory() as tmp:
+            folder = progress_folder(Path(tmp))
+            put(folder, "demo.md", build_record(stem="demo"))
+            target = Path(tmp) / "elsewhere.json"
+            target.write_text(json.dumps(sync_payload(findings=[finding()])), encoding="utf-8")
+            make_symlink_or_skip(folder / rp.SYNC_STATUS_FILENAME, target)
+            page = overview_page(folder)
+        section = page.section(rp.SYNC_SUMMARY)
+        self.assertIn("讀不到比對結果", section.text())
+        self.assertEqual(page.find_all("li", cls="sync-item", within=section), [])
+
+    def test_doc_names_the_sync_file(self) -> None:
+        text = PROGRESS_RECORD_DOC.read_text(encoding="utf-8")
+        self.assertIn(f"`{rp.SYNC_STATUS_FILENAME}`", text)
+        self.assertIn(rp.SYNC_STALE_TEXT, text)
+        self.assertIn(rp.DONE_HINT, text)
