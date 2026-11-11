@@ -543,6 +543,34 @@ def test_real_run_refuses_when_the_folder_or_a_parent_is_a_link(
     assert kept.read_text(encoding="utf-8") == "x"
 
 
+def write_lesson(repo: SimpleNamespace, status: str) -> None:
+    lessons = repo.root / ".toukadev" / "lessons"
+    lessons.mkdir(parents=True, exist_ok=True)
+    (lessons / "2026-11-11-x.md").write_text(
+        f"# x\n\n類型：白做工\n狀態：{status}\n\n證據：.toukadev/tmp/{TASK}/sub/log.txt\n",
+        encoding="utf-8",
+    )
+
+
+def test_real_run_refuses_while_an_open_lesson_cites_the_folder(
+    repo: SimpleNamespace,
+) -> None:
+    write_lesson(repo, "待處理")
+    completed = run_script(repo.root, repo.folder)
+    assert completed.returncode == 1
+    assert b"Not deleted" in completed.stderr
+    assert nothing_deleted(repo)
+
+
+def test_real_run_ignores_a_closed_lesson_citing_the_folder(
+    repo: SimpleNamespace,
+) -> None:
+    write_lesson(repo, "已處理")
+    completed = run_script(repo.root, repo.folder)
+    assert completed.returncode == 0, completed.stderr
+    assert not repo.folder.exists() and repo.kept[1].exists()
+
+
 def test_real_run_refuses_a_folder_holding_a_git_worktree(
     repo: SimpleNamespace,
 ) -> None:

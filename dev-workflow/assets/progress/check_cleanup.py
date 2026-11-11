@@ -50,6 +50,11 @@ RESERVED_TASK_CODE = "index"
 TOUKADEV_FOLDER = ".toukadev"
 WORKTREES_FOLDER = "worktrees"
 TMP_FOLDER = "tmp"
+LESSONS_FOLDER = "lessons"
+LESSON_SUFFIX = ".md"
+# 流程紀錄的狀態值以 improvement-loop 的 recording.md 為準；這兩種已結案，不算還在引用。
+CLOSED_LESSON_STATES = ("已處理", "不採用")
+LESSON_STATE_LINE = re.compile(r"^\s*狀態[：:]\s*(\S.*)$", re.MULTILINE)
 BRANCH_REF_PREFIX = "refs/heads/"
 MAX_LISTED = 10
 ORIGIN_HEAD = "refs/remotes/origin/HEAD"
@@ -575,7 +580,55 @@ def check_tmp(root: Path, target: Path, task: str) -> Verdict:
             f"位置必須正好是本任務的暫存資料夾 {expected}，目前是 {resolved}。"
         )
     check_no_worktree_inside(root, resolved, verdict)
+    if TASK_CODE_PATTERN.match(task):
+        check_lessons_cite(root, task, verdict)
     return verdict
+
+
+def check_lessons_cite(root: Path, task: str, verdict: Verdict) -> None:
+    """待處理、保留觀察或認不出狀態的流程紀錄還引用這個暫存資料夾時不通過。
+
+    只讀 .toukadev/lessons/ 直接底下的 .md；連結略過，資料夾本身是連結時不通過。
+    """
+    folder = root / TOUKADEV_FOLDER / LESSONS_FOLDER
+    if is_link(folder):
+        verdict.reasons.append(
+            f"{folder} 是捷徑連結，沒辦法確認流程紀錄有沒有引用這個暫存資料夾。"
+        )
+        return
+    if not folder.is_dir():
+        return
+    pattern = tmp_reference_pattern(task)
+    citing: list[str] = []
+    for entry in sorted(folder.iterdir(), key=lambda path: path.name):
+        if entry.suffix.lower() != LESSON_SUFFIX or is_link(entry) or not entry.is_file():
+            continue
+        try:
+            text = entry.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            verdict.reasons.append(f"讀不到流程紀錄 {entry.name}（{error}），沒辦法確認有沒有引用。")
+            continue
+        if not lesson_is_closed(text) and pattern.search(text):
+            citing.append(entry.name)
+    if citing:
+        verdict.reasons.append(
+            "待處理或保留觀察的流程紀錄還引用這個暫存資料夾，"
+            f"先把證據改指會保留的位置再清：{summarize(citing)}"
+        )
+
+
+def tmp_reference_pattern(task: str) -> re.Pattern[str]:
+    """.toukadev/tmp/<任務代號>：兩種分隔都認、不分大小寫，任務代號要比到段落結尾。"""
+    separator = r"[\\/]+"
+    return re.compile(
+        rf"\.toukadev{separator}tmp{separator}{re.escape(task)}(?![A-Za-z0-9_.-])",
+        re.IGNORECASE,
+    )
+
+
+def lesson_is_closed(text: str) -> bool:
+    match = LESSON_STATE_LINE.search(text)
+    return match is not None and match.group(1).startswith(CLOSED_LESSON_STATES)
 
 
 def check_task_code(task: str, verdict: Verdict) -> None:

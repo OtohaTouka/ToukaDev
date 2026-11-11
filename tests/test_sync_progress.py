@@ -536,7 +536,9 @@ class TempRowTests(TestCase):
             with self.subTest(case=name), self.check(
                 [temp_row("資料夾", "工作資料夾", location, status)], setup=setup
             ) as project:
-                self.assertEqual([item["kind"] for item in project.findings()], kinds)
+                # 只看這一列；整個專案的列（清單讀不到時另有一項）由 WorktreeLocationTests 測。
+                rows = [item["kind"] for item in project.findings() if item["record"]]
+                self.assertEqual(rows, kinds)
 
     def test_relative_worktree_is_resolved_from_the_main_project_folder(self) -> None:
         # 紀錄放在工具管理的工作資料夾裡時，相對路徑仍從主要專案資料夾算起。
@@ -1265,3 +1267,85 @@ class ReviewRoundTwoTests(TestCase):
     def test_docs_follow_the_round_two_changes(self) -> None:
         self.assertIn("symbolic-ref", sp.__doc__)
         self.assertIn("core.sshCommand", PROGRESS_RECORD_DOC.read_text(encoding="utf-8"))
+
+
+# ── 工作資料夾放錯位置（不屬於任何紀錄，整個專案一項）────────────
+
+
+class WorktreeLocationTests(TestCase):
+    """git 的工作資料夾清單裡，放在 .toukadev/tmp/ 底下的列成「整個專案」的對不上，不靠紀錄有沒有登記。"""
+
+    def run_with(self, *extra_worktrees: str, args: Sequence[str] = ()) -> tuple[int, str, list[dict[str, object]], Project]:
+        project = Project()
+        project.write("demo", record())
+        project.runner.worktrees = [project.root, *(project.root / path for path in extra_worktrees)]
+        code, out, _ = project.run(*args)
+        return code, out, project.findings(), project
+
+    def project_rows(self, findings: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [item for item in findings if item["record"] == ""]
+
+    def test_worktree_under_tmp_is_a_project_wide_mismatch(self) -> None:
+        code, out, findings, project = self.run_with(".toukadev/tmp/demo/repro", ".toukadev/worktrees/demo-a")
+        with project:
+            rows = self.project_rows(findings)
+            self.assertEqual(code, 1, out)
+            self.assertEqual(len(rows), 1, findings)
+            self.assertEqual(rows[0]["kind"], "mismatch")
+            self.assertEqual(rows[0]["section"], rp.TEMP)
+            self.assertEqual(rows[0]["row"], 0)
+            self.assertIn("repro", str(rows[0]["item"]))
+            self.assertIn(".toukadev/tmp/", str(rows[0]["message"]))
+            self.assertIn(rp.SYNC_PROJECT_TEXT, out)
+            self.assertEqual(project.status()["version"], 2)
+
+    def test_tmp_folder_itself_counts_but_a_lookalike_name_does_not(self) -> None:
+        for location, expected in ((".toukadev/tmp", 1), (".toukadev/tmpx/demo", 0), (".toukadev/worktrees/tmp/demo", 0)):
+            with self.subTest(location=location):
+                code, out, findings, project = self.run_with(location)
+                with project:
+                    self.assertEqual(len(self.project_rows(findings)), expected, findings)
+                    self.assertEqual(code, expected, out)
+
+    def test_worktrees_elsewhere_are_fine(self) -> None:
+        code, out, findings, project = self.run_with(".toukadev/worktrees/demo-a", "../elsewhere")
+        with project:
+            self.assertEqual(self.project_rows(findings), [])
+            self.assertEqual(code, 0, out)
+
+    def test_case_follows_the_platform(self) -> None:
+        code, _, findings, project = self.run_with(".TOUKADEV/TMP/demo/repro")
+        with project:
+            expected = 1 if os.path.normcase("A") == "a" else 0
+            self.assertEqual(len(self.project_rows(findings)), expected, findings)
+            self.assertEqual(code, expected)
+
+    def test_unreadable_worktree_list_is_reported_once_for_the_project(self) -> None:
+        project = Project()
+        with project:
+            project.write("demo", record())
+            project.runner.worktrees = "fail"
+            code, _, _ = project.run()
+            rows = [item for item in project.findings() if item["record"] == ""]
+            self.assertEqual(code, 1)
+            self.assertEqual([item["kind"] for item in rows], ["unreachable"])
+
+    def test_apply_leaves_the_record_alone(self) -> None:
+        project = Project()
+        with project:
+            path = project.write("demo", record())
+            before = path.read_bytes()
+            project.runner.worktrees = [project.root, project.root / ".toukadev/tmp/demo/repro"]
+            code, _, _ = project.run("--apply", "--task", "demo")
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(len([item for item in project.findings() if item["record"] == ""]), 1)
+            self.assertEqual(code, 1)
+
+    def test_renderer_reads_the_project_wide_row(self) -> None:
+        code, _, _, project = self.run_with(".toukadev/tmp/demo/repro")
+        with project:
+            self.assertEqual(code, 1)
+            rp.render_folder(project.progress)
+            page = (project.progress / "index.html").read_text(encoding="utf-8")
+            self.assertIn(rp.SYNC_PROJECT_TEXT, page)
+            self.assertNotIn("格式不對", page)

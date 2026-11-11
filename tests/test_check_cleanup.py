@@ -821,6 +821,126 @@ class TmpCheckTests(TestCase):
         self.assertIn("連結", output)
 
 
+LESSON_TEXT = "# 標題\n\n類型：白做工\n狀態：{status}\n次數：1\n專案：demo\n\n## 證據\n- {evidence}\n"
+
+
+class LessonReferenceTests(TestCase):
+    """待處理、保留觀察或認不出狀態的流程紀錄還引用要清的暫存時不通過。"""
+
+    def check_with(
+        self, text: str, task: str = "demo", name: str = "2026-11-11-x.md"
+    ) -> tuple[int, str]:
+        with GitSandbox() as sandbox:
+            sandbox.write(f".toukadev/tmp/{task}/red.log", "x")
+            sandbox.write(f".toukadev/lessons/{name}", text)
+            return sandbox.check(
+                "tmp", str(sandbox.root / f".toukadev/tmp/{task}"), "--task", task
+            )
+
+    def test_open_lesson_citing_the_folder_is_refused(self) -> None:
+        for status in ("待處理", "待處理（處理後又發生）", "保留觀察"):
+            with self.subTest(status=status):
+                text = LESSON_TEXT.format(status=status, evidence="`.toukadev/tmp/demo/red.log`")
+                code, output = self.check_with(text)
+                self.assertEqual(code, 1, output)
+                self.assertIn("流程紀錄", output)
+                self.assertIn("2026-11-11-x.md", output)
+
+    def test_closed_lessons_do_not_count(self) -> None:
+        for status in ("已處理", "不採用"):
+            with self.subTest(status=status):
+                text = LESSON_TEXT.format(status=status, evidence=".toukadev/tmp/demo/red.log")
+                code, output = self.check_with(text)
+                self.assertEqual(code, 0, output)
+
+    def test_lesson_without_a_status_line_counts(self) -> None:
+        code, output = self.check_with("# 舊格式\n\n類型：問題由他人發現\n\n證據：.toukadev/tmp/demo/red.log\n")
+        self.assertEqual(code, 1, output)
+
+    def test_reference_forms(self) -> None:
+        cases = {
+            ".toukadev/tmp/demo/red.log": 1,
+            ".toukadev\\tmp\\demo\\red.log": 1,
+            "D:\\work\\repo\\.toukadev\\tmp\\demo": 1,
+            "/home/me/repo/.toukadev/tmp/demo/": 1,
+            ".TOUKADEV/TMP/DEMO/red.log": 1,
+            "見 .toukadev/tmp/demo": 1,
+            "（.toukadev/tmp/demo）": 1,
+            ".toukadev/tmp/demo-2/red.log": 0,
+            ".toukadev/tmp/demo12": 0,
+            ".toukadev/tmp/demo_x": 0,
+            ".toukadev/tmp/other/demo": 0,
+            ".toukadev/worktrees/demo": 0,
+            "toukadev/tmp/demo": 0,
+        }
+        for evidence, expected in cases.items():
+            with self.subTest(evidence=evidence):
+                code, output = self.check_with(LESSON_TEXT.format(status="待處理", evidence=evidence))
+                self.assertEqual(code, expected, output)
+
+    def test_shorter_task_code_is_not_blocked_by_a_longer_one(self) -> None:
+        text = LESSON_TEXT.format(status="待處理", evidence=".toukadev/tmp/improve-12/plan.md")
+        code, output = self.check_with(text, task="improve-1")
+        self.assertEqual(code, 0, output)
+        code, output = self.check_with(text, task="improve-12")
+        self.assertEqual(code, 1, output)
+
+    def test_only_markdown_directly_inside_the_lessons_folder_is_read(self) -> None:
+        text = LESSON_TEXT.format(status="待處理", evidence=".toukadev/tmp/demo/red.log")
+        for name in ("old/2026-11-11-x.md", "2026-11-11-x.txt"):
+            with self.subTest(name=name):
+                code, output = self.check_with(text, name=name)
+                self.assertEqual(code, 0, output)
+
+    def test_linked_lesson_is_skipped(self) -> None:
+        with GitSandbox() as sandbox:
+            sandbox.write(".toukadev/tmp/demo/red.log", "x")
+            outside = sandbox.write(
+                "outside/lesson.md",
+                LESSON_TEXT.format(status="待處理", evidence=".toukadev/tmp/demo/red.log"),
+                base=sandbox.base,
+            )
+            (sandbox.root / ".toukadev" / "lessons").mkdir(parents=True)
+            make_symlink_or_skip(self, sandbox.root / ".toukadev/lessons/linked.md", outside)
+            code, output = sandbox.check(
+                "tmp", str(sandbox.root / ".toukadev/tmp/demo"), "--task", "demo"
+            )
+        self.assertEqual(code, 0, output)
+
+    def test_lessons_folder_that_is_a_link_is_refused(self) -> None:
+        with GitSandbox() as sandbox:
+            sandbox.write(".toukadev/tmp/demo/red.log", "x")
+            outside = sandbox.base / "outside-lessons"
+            outside.mkdir()
+            make_symlink_or_skip(self, sandbox.root / ".toukadev/lessons", outside)
+            code, output = sandbox.check(
+                "tmp", str(sandbox.root / ".toukadev/tmp/demo"), "--task", "demo"
+            )
+        self.assertEqual(code, 1, output)
+        self.assertIn("流程紀錄", output)
+
+    @skipUnless(IS_WINDOWS, JUNCTION_SKIP_REASON)
+    def test_lessons_folder_that_is_a_junction_is_refused(self) -> None:
+        with GitSandbox() as sandbox:
+            sandbox.write(".toukadev/tmp/demo/red.log", "x")
+            outside = sandbox.base / "outside-lessons"
+            outside.mkdir()
+            make_junction(sandbox.root / ".toukadev/lessons", outside)
+            code, output = sandbox.check(
+                "tmp", str(sandbox.root / ".toukadev/tmp/demo"), "--task", "demo"
+            )
+        self.assertEqual(code, 1, output)
+        self.assertIn("流程紀錄", output)
+
+    def test_no_lessons_folder_passes(self) -> None:
+        with GitSandbox() as sandbox:
+            sandbox.write(".toukadev/tmp/demo/red.log", "x")
+            code, output = sandbox.check(
+                "tmp", str(sandbox.root / ".toukadev/tmp/demo"), "--task", "demo"
+            )
+        self.assertEqual(code, 0, output)
+
+
 class BranchCheckTests(TestCase):
     def test_free_task_branch_passes(self) -> None:
         with GitSandbox() as sandbox:

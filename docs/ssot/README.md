@@ -110,11 +110,18 @@ AI 可自動清理的項目與刪法只以正本列出的為準。暫存資料�
 「比對實際狀態」為準；紀錄解析、狀態值與比對結果的常數都用同資料夾的 `render_progress.py`，共用分支名單用同資料夾的
 `check_cleanup.py`，不另寫一份。
 結果檔 `.toukadev/progress/sync-status.json`（UTF-8 JSON，最多 256 KiB）由比對程式寫、網頁只讀，欄位剛好是：
-`format`（固定 `toukadev-sync-status`）、`version`（整數 1）、`checked_at`（比對時間，epoch 秒）、
+`format`（固定 `toukadev-sync-status`）、`version`（寫入一律是整數 2；網頁也讀舊的 1）、`checked_at`（比對時間，epoch 秒）、
 `records`（最多 500 份；任務代號 → 比對時那份 `.md` 的修改時間，整數秒）、`findings`（最多 500 項，每項剛好有 `kind`：
 `mismatch`／`unchecked`／`unreachable`，`record`、`section`：「工作清單」或「暫存項目」，`row`：從 1 起算的列號，
-`item`、`message`）。文字每格最多 500 字；時間都是 0 到 2100-01-01 之間的整數秒。任何欄位不合，網頁整份不採用、只顯示原因。
-`tests/test_sync_progress.py` 鎖住比對、`--apply` 與結果格式，決策見 [ADR-051](../adr/ADR-051-第十一次改進任務進度比對與叫醒外部紅燈.md)。
+`item`、`message`）。不屬於任何一份紀錄的整個專案結果（例如工作資料夾建在暫存資料夾裡），`record` 是空字串、`section`
+是「暫存項目」、`row` 是 0，只在版本 2 出現；版本 1 有這種列，或一般列的 `row` 是 0，都算不合。
+文字每格最多 500 字；時間都是 0 到 2100-01-01 之間的整數秒。任何欄位不合，網頁整份不採用、只顯示原因。
+`tests/test_sync_progress.py` 鎖住比對、`--apply` 與結果格式，決策見 [ADR-051](../adr/ADR-051-第十一次改進任務進度比對與叫醒外部紅燈.md)、
+[ADR-052](../adr/ADR-052-第十二次改進任務美術流程.md)。
+
+清暫存資料夾前，`check_cleanup.py` 的 tmp 檢查會讀主要專案資料夾 `.toukadev/lessons/` 底下直接的 `.md` 紀錄：
+狀態不是「已處理」或「不採用」（含沒有狀態列）的紀錄還寫著這個暫存資料夾的路徑，就不清。狀態值以 recording.md
+「紀錄格式」為準，程式只認這兩個結案狀態，不另定一組；`tests/test_check_cleanup.py` 與 `tests/test_tmp_delete.py` 鎖住這件事。
 
 ## 改進紀錄與改進任務
 

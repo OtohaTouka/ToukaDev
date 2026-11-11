@@ -179,7 +179,11 @@ BOLD_PATTERN = re.compile(r"\*\*(.+?)\*\*")
 
 SYNC_STATUS_FILENAME = "sync-status.json"
 SYNC_FORMAT = "toukadev-sync-status"
-SYNC_VERSION = 1
+SYNC_VERSION = 2
+# 第 1 版的結果檔照樣讀；第 2 版多了不屬於任何紀錄的列（record 空字串、row 0）。
+SYNC_READABLE_VERSIONS = (1, SYNC_VERSION)
+SYNC_PROJECT_RECORD = ""
+SYNC_PROJECT_TEXT = "整個專案"
 SYNC_MAX_BYTES = 256 * 1024
 SYNC_MAX_FINDINGS = 500
 SYNC_MAX_TEXT = 500
@@ -1720,8 +1724,15 @@ def render_sync_summary(sync: SyncView | None, views: Sequence[RecordView]) -> s
 
 
 def render_sync_item(item: SyncFinding, css: str, label: str) -> str:
-    text = f"{label}{item.record}：{item.section}第 {item.row} 列「{item.item}」：{item.message}"
+    text = f"{label}{sync_finding_text(item)}"
     return f'<li class="{css}" data-record="{esc(item.record)}">{esc(text)}</li>'
+
+
+def sync_finding_text(item: SyncFinding) -> str:
+    """比對結果的一行文字；網頁與比對程式的畫面共用。"""
+    if item.record == SYNC_PROJECT_RECORD:
+        return f"{SYNC_PROJECT_TEXT}「{item.item}」：{item.message}"
+    return f"{item.record}：{item.section}第 {item.row} 列「{item.item}」：{item.message}"
 
 
 def sync_is_stale(status: SyncStatus, views: Sequence[RecordView]) -> bool:
@@ -2216,7 +2227,7 @@ def parse_sync_payload(data: object) -> SyncStatus:
         raise SyncFormatError("最外層的欄位不對")
     if data["format"] != SYNC_FORMAT or not is_plain_int(data["version"]):
         raise SyncFormatError("格式名稱或版本不對")
-    if data["version"] != SYNC_VERSION:
+    if data["version"] not in SYNC_READABLE_VERSIONS:
         raise SyncFormatError(f"版本 {data['version']} 不認得")
     if not is_epoch(data["checked_at"]):
         raise SyncFormatError("比對時間不對")
@@ -2229,17 +2240,27 @@ def parse_sync_payload(data: object) -> SyncStatus:
     findings = data["findings"]
     if not isinstance(findings, list) or len(findings) > SYNC_MAX_FINDINGS:
         raise SyncFormatError("結果清單不對或太多項")
+    project_rows = data["version"] >= 2
     return SyncStatus(
-        data["checked_at"], dict(records), tuple(parse_sync_finding(item) for item in findings)
+        data["checked_at"],
+        dict(records),
+        tuple(parse_sync_finding(item, project_rows) for item in findings),
     )
 
 
-def parse_sync_finding(item: object) -> SyncFinding:
+def parse_sync_finding(item: object, project_rows: bool = True) -> SyncFinding:
+    """一般的列：有紀錄、列號從 1 起；整個專案的列（第 2 版起）：紀錄是空字串、列號 0。"""
     if not isinstance(item, dict) or set(item) != SYNC_FINDING_KEYS:
         raise SyncFormatError("結果的欄位不對")
     if item["kind"] not in SYNC_KINDS or item["section"] not in SYNC_SECTIONS:
         raise SyncFormatError("結果的類別或區段不對")
-    if not is_plain_int(item["row"]) or item["row"] < 1:
+    if not is_plain_int(item["row"]):
+        raise SyncFormatError("結果的列號不對")
+    project_wide = item["record"] == SYNC_PROJECT_RECORD
+    if project_wide and not project_rows:
+        raise SyncFormatError("第 1 版的結果不能有整個專案的列")
+    bad_row = item["row"] != 0 if project_wide else item["row"] < 1
+    if bad_row:
         raise SyncFormatError("結果的列號不對")
     texts = (item["record"], item["item"], item["message"])
     if not all(is_short_text(text) for text in texts):
