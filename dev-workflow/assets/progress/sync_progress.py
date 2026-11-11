@@ -8,6 +8,8 @@
 - 只用唯讀指令：git rev-parse、remote、config --get、worktree list、symbolic-ref、ls-remote、show-ref，
   以及 gh pr list；不 fetch、不 prune。每個指令有時限、關掉登入提示（使用者有自己的 ssh 設定時照用）；
   gh 沒裝、沒登入或沒網路時寫「查不到」。
+- 另外直接查 git worktree list 的全部項目：落在 .toukadev/tmp/ 底下的工作資料夾列成整個專案的「對不上」
+  （ADR-052），--apply 不改它。
 - 結果印在畫面上，也寫進同資料夾的 sync-status.json（先寫暫存檔再替換），進度網頁會讀它。
 - --apply 只由主代理執行：只改 --task 那一份紀錄的三種固定欄位，並在審核紀錄最後加一列。
   寫入前核對新舊內容只差那些格子與新加的一列；讀檔後內容被改過就整個放棄。
@@ -196,7 +198,7 @@ class Context:
     ssh_batch: bool = False
     pulls_cache: dict[tuple[str, str], list[PullRequest] | str] = field(default_factory=dict)
     heads_cache: dict[tuple[str, str], RemoteHead] = field(default_factory=dict)
-    worktree_cache: list[tuple[set[str], Path | None] | str] = field(default_factory=list)
+    worktree_cache: list[tuple[set[str], Path | None, list[Path]] | str] = field(default_factory=list)
     default_cache: dict[str, str | None] = field(default_factory=dict)
 
     def git(self, *args: str) -> CommandResult:
@@ -226,8 +228,8 @@ class Context:
             )
         return self.heads_cache[key]
 
-    def worktrees(self) -> tuple[set[str], Path | None] | str:
-        """git 的工作資料夾清單與第一筆（主要工作資料夾）；查不到時回傳原因。"""
+    def worktrees(self) -> tuple[set[str], Path | None, list[Path]] | str:
+        """git 的工作資料夾清單（比對用的鍵、第一筆主要工作資料夾、全部路徑）；查不到時回傳原因。"""
         if not self.worktree_cache:
             result = self.git("worktree", "list", "--porcelain")
             if result.code != 0:
@@ -239,7 +241,7 @@ class Context:
                     if line.startswith("worktree ")
                 ]
                 main = paths[0] if paths else None
-                self.worktree_cache.append(({path_key(path) for path in paths}, main))
+                self.worktree_cache.append(({path_key(path) for path in paths}, main, paths))
         return self.worktree_cache[0]
 
     def default_branch(self, remote: str) -> str | None:
@@ -619,7 +621,7 @@ def check_worktree(ctx: Context, row: Row) -> list[Outcome]:
     listing = ctx.worktrees()
     if isinstance(listing, str):
         return row.outcome(UNREACHABLE, listing)
-    keys, main = listing
+    keys, main, _ = listing
     path = Path(text)
     if not path.is_absolute():
         path = (main or ctx.root) / path
@@ -637,6 +639,34 @@ def check_worktree(ctx: Context, row: Row) -> list[Outcome]:
     if listed and cleaned:
         return row.outcome(rp.SYNC_MISMATCH, "寫已清理，但工作資料夾還在")
     return []
+
+
+MISPLACED_WORKTREE = (
+    "工作資料夾放在 .toukadev/tmp/ 底下（位置不對，四種自動清理都清不掉，不自動刪）："
+    "驗證或重現用的複本照 progress-record「驗證用複本」重建，舊的列進清理清單交人類；"
+    "實作用的沒有 venv、node_modules 就 git worktree move 到 .toukadev/worktrees/，有的問人類；"
+    "搬完當場把紀錄的位置改成新位置"
+)
+
+
+def check_worktree_locations(ctx: Context) -> list[Outcome]:
+    """git 清單裡（不含主要工作資料夾）落在 .toukadev/tmp/ 底下的工作資料夾；不靠紀錄有沒有登記。"""
+    listing = ctx.worktrees()
+    if isinstance(listing, str):
+        return [project_outcome(UNREACHABLE, "工作資料夾清單", listing)]
+    _, main, paths = listing
+    tmp = path_key((main or ctx.root) / ".toukadev" / "tmp")
+    outcomes: list[Outcome] = []
+    for path in paths[1:]:
+        key = path_key(path)
+        if key == tmp or key.startswith(tmp + os.sep):
+            outcomes.append(project_outcome(rp.SYNC_MISMATCH, clip(str(path)), MISPLACED_WORKTREE))
+    return outcomes
+
+
+def project_outcome(kind: str, item: str, message: str) -> Outcome:
+    """不屬於任何紀錄的結果（整個專案一項）；--apply 不改它。"""
+    return Outcome(rp.SyncFinding(kind, rp.SYNC_PROJECT_RECORD, rp.TEMP, 0, item, clip(message)))
 
 
 def check_local(ctx: Context, row: Row) -> list[Outcome]:
@@ -946,6 +976,7 @@ def collect(ctx: Context, folder: Path, skip: str | None) -> Report:
             continue
         report.records[view.record.stem] = view.modified_epoch
         report.outcomes.extend(check_record(ctx, view))
+    report.outcomes.extend(check_worktree_locations(ctx))
     return report
 
 
@@ -982,12 +1013,12 @@ def print_report(report: Report, path: Path) -> None:
     if mismatches:
         emit(f"{rp.SYNC_SUMMARY} {len(mismatches)} 項：")
         for item in mismatches:
-            emit(f"- {item.record}：{item.section}第 {item.row} 列「{item.item}」：{item.message}")
+            emit(f"- {rp.sync_finding_text(item)}")
     else:
         emit("都對得上：沒有發現紀錄和實際狀態不一樣的地方。")
     for item in others:
         label = rp.SYNC_KINDS[item.kind]
-        emit(f"-【{label}】{item.record}：{item.section}第 {item.row} 列「{item.item}」：{item.message}")
+        emit(f"-【{label}】{rp.sync_finding_text(item)}")
     for message in report.unreadable:
         emit_error(message)
     emit(f"結果寫在 {path}")

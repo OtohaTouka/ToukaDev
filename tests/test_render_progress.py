@@ -3320,7 +3320,7 @@ class SyncStatusDisplayTests(TestCase):
             "不是 UTF-8": b"\xff\xfe\x00",
             "不是物件": b"[]",
             "格式名稱不對": json.dumps(sync_payload(format="other")).encode(),
-            "版本不對": json.dumps(sync_payload(version=2)).encode(),
+            "版本不對": json.dumps(sync_payload(version=3)).encode(),
             "時間不是整數": json.dumps(sync_payload(checked_at="now")).encode(),
             "布林不算整數": json.dumps(sync_payload(checked_at=True)).encode(),
             "紀錄時間不對": json.dumps(sync_payload(records={"demo": "x"})).encode(),
@@ -3356,6 +3356,45 @@ class SyncStatusDisplayTests(TestCase):
         section = page.section(rp.SYNC_SUMMARY)
         self.assertIn("讀不到比對結果", section.text())
         self.assertEqual(page.find_all("li", cls="sync-item", within=section), [])
+
+    def project_row(self, **overrides: object) -> dict[str, object]:
+        values: dict[str, object] = {
+            "record": "",
+            "section": "暫存項目",
+            "row": 0,
+            "item": "D:/repo/.toukadev/tmp/demo/repro",
+            "message": "工作資料夾放在 .toukadev/tmp/ 底下",
+        }
+        values.update(overrides)
+        return finding(**values)
+
+    def test_version_two_shows_a_project_wide_row(self) -> None:
+        page = self.overview(sync_payload(version=2, findings=[self.project_row(), finding()]))
+        section = page.section(rp.SYNC_SUMMARY)
+        self.assertEqual(section.attrs.get("data-count"), "2")
+        items = page.find_all("li", cls="sync-item", within=section)
+        self.assertIn(rp.SYNC_PROJECT_TEXT, items[0].text())
+        self.assertIn(".toukadev/tmp/", items[0].text())
+        self.assertNotIn("第 0 列", items[0].text())
+        self.assertIn("工作清單第 2 列", items[1].text())
+
+    def test_project_wide_rows_need_version_two_and_row_zero(self) -> None:
+        self.assertEqual(rp.SYNC_VERSION, 2)
+        rp.parse_sync_payload(sync_payload(version=1, findings=[finding()]))
+        rp.parse_sync_payload(sync_payload(version=2, findings=[finding(), self.project_row()]))
+        bad = {
+            "第 1 版不能有整個專案的列": sync_payload(version=1, findings=[self.project_row()]),
+            "有紀錄的列不能是第 0 列": sync_payload(version=2, findings=[finding(row=0)]),
+            "整個專案的列只能是第 0 列": sync_payload(version=2, findings=[self.project_row(row=3)]),
+            "整個專案的列只能在暫存項目": sync_payload(
+                version=2, findings=[self.project_row(section="工作清單")]
+            ),
+            "不認得的版本": sync_payload(version=3),
+        }
+        for name, payload in bad.items():
+            with self.subTest(name=name):
+                with self.assertRaises(rp.SyncFormatError):
+                    rp.parse_sync_payload(payload)
 
     def test_doc_names_the_sync_file(self) -> None:
         text = PROGRESS_RECORD_DOC.read_text(encoding="utf-8")

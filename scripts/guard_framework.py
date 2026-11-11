@@ -815,6 +815,21 @@ REQUIRED_OBLIGATION_FRAGMENTS = (
         "project-init/SKILL.md",
         "初始化產生的 AGENTS.md 必須保留「Quick validation profile」段的命令清單；",
     ),
+    # Twelfth improvement run (ADR-052): approved items 1, 3, 4, 8 (list items for the human to delete) and 12.
+    (
+        "asset-workflow/references/reference-review.md",
+        "要看的畫面以觀眾實際看到的為準：成品解析度、觀眾的入口或預設鏡頭、全部指定時段；入口或預設鏡頭即使只記錄也要主觀評分。",
+    ),
+    (
+        "asset-workflow/references/reference-review.md",
+        "有時間軸的新作品（影片、動畫、配樂）附全長粗剪：照最後的順序與長度，每段至少有代表或暫定畫面與暫定配樂；",
+    ),
+    ("asset-workflow/SKILL.md", "計畫沒寫到的程式修改都算超出 DEV-A 計畫"),
+    (
+        "dev-workflow/references/progress-record.md",
+        "代理平台禁止 AI 永久刪除時，第 1、2 種項目照常跑清理前檢查，但不用規定的刪法，也不換成任何其他刪法（含移到資源回收筒）",
+    ),
+    ("dev-workflow/references/progress-record.md", "同意與決定只認人類在本對話的回覆"),
 )
 PROCEDURE_STEPS = (
     ("dev-workflow/references/planning.md", (1, 2, 3)),
