@@ -54,8 +54,8 @@ LESSONS_FOLDER = "lessons"
 LESSON_SUFFIX = ".md"
 # 流程紀錄的狀態值以 improvement-loop 的 recording.md 為準；這兩種已結案，不算還在引用。
 CLOSED_LESSON_STATES = ("已處理", "不採用")
-# 只在同一行裡找狀態值（空白含全形空白），不跨到下一行。
-LESSON_STATE_LINE = re.compile(r"^[ \t　]*狀態[：:][ \t　]*(\S.*)$", re.MULTILINE)
+# 只看第一個狀態列，值只在同一行裡找（空白含全形空白）；值是空的算還沒結案。
+LESSON_STATE_LINE = re.compile(r"^[ \t\u3000]*狀態[：:][ \t\u3000]*(.*)$", re.MULTILINE)
 BRANCH_REF_PREFIX = "refs/heads/"
 MAX_LISTED = 10
 ORIGIN_HEAD = "refs/remotes/origin/HEAD"

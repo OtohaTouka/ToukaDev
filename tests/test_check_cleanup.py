@@ -862,6 +862,19 @@ class LessonReferenceTests(TestCase):
         code, output = self.check_with(text)
         self.assertEqual(code, 1, output)
 
+    def test_only_the_first_status_line_counts(self) -> None:
+        text = (
+            "# 標題\n\n狀態：\n\n## 證據\n- .toukadev/tmp/demo/red.log\n\n"
+            "## 處理結果\n狀態：已處理（舊的處理）\n"
+        )
+        code, output = self.check_with(text)
+        self.assertEqual(code, 1, output)
+
+    def test_full_width_space_after_the_colon_is_allowed(self) -> None:
+        text = LESSON_TEXT.format(status="　已處理", evidence=".toukadev/tmp/demo/red.log")
+        code, output = self.check_with(text)
+        self.assertEqual(code, 0, output)
+
     def test_unreadable_lesson_is_refused_without_a_traceback(self) -> None:
         original = Path.read_text
 
