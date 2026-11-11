@@ -8,6 +8,8 @@
 - 只用唯讀指令：git rev-parse、remote、config --get、worktree list、symbolic-ref、ls-remote、show-ref，
   以及 gh pr list；不 fetch、不 prune。每個指令有時限、關掉登入提示（使用者有自己的 ssh 設定時照用）；
   gh 沒裝、沒登入或沒網路時寫「查不到」。
+- 另外直接查 git worktree list 的全部項目：落在 .toukadev/tmp/ 底下的工作資料夾列成整個專案的「對不上」
+  （ADR-052），--apply 不改它。
 - 結果印在畫面上，也寫進同資料夾的 sync-status.json（先寫暫存檔再替換），進度網頁會讀它。
 - --apply 只由主代理執行：只改 --task 那一份紀錄的三種固定欄位，並在審核紀錄最後加一列。
   寫入前核對新舊內容只差那些格子與新加的一列；讀檔後內容被改過就整個放棄。
@@ -642,7 +644,8 @@ def check_worktree(ctx: Context, row: Row) -> list[Outcome]:
 MISPLACED_WORKTREE = (
     "工作資料夾放在 .toukadev/tmp/ 底下（位置不對，四種自動清理都清不掉，不自動刪）："
     "驗證或重現用的複本照 progress-record「驗證用複本」重建，舊的列進清理清單交人類；"
-    "實作用的沒有 venv、node_modules 就 git worktree move 到 .toukadev/worktrees/，有的問人類"
+    "實作用的沒有 venv、node_modules 就 git worktree move 到 .toukadev/worktrees/，有的問人類；"
+    "搬完當場把紀錄的位置改成新位置"
 )
 
 

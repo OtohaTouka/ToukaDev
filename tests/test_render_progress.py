@@ -3386,6 +3386,9 @@ class SyncStatusDisplayTests(TestCase):
             "第 1 版不能有整個專案的列": sync_payload(version=1, findings=[self.project_row()]),
             "有紀錄的列不能是第 0 列": sync_payload(version=2, findings=[finding(row=0)]),
             "整個專案的列只能是第 0 列": sync_payload(version=2, findings=[self.project_row(row=3)]),
+            "整個專案的列只能在暫存項目": sync_payload(
+                version=2, findings=[self.project_row(section="工作清單")]
+            ),
             "不認得的版本": sync_payload(version=3),
         }
         for name, payload in bad.items():

@@ -485,7 +485,7 @@ FRAGMENT_OBLIGATIONS = (
     *IMPROVEMENT_BASELINE_FRAGMENTS,
     ("dev-workflow/SKILL.md", "legacy 多候選須明確選擇"),
     *QUICK_FRAGMENT_OBLIGATIONS,
-    # ADR-052: the approved items 1, 3, 4, 8 (plan A) and 12, one sentence each.
+    # ADR-052: the approved items 1, 3, 4, 8 (list items for the human to delete) and 12, one sentence each.
     (
         "asset-workflow/references/reference-review.md",
         "要看的畫面以觀眾實際看到的為準：成品解析度、觀眾的入口或預設鏡頭、全部指定時段；入口或預設鏡頭即使只記錄也要主觀評分。",

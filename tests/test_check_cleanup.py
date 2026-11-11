@@ -844,7 +844,7 @@ class LessonReferenceTests(TestCase):
                 code, output = self.check_with(text)
                 self.assertEqual(code, 1, output)
                 self.assertIn("流程紀錄", output)
-                self.assertIn("2026-11-11-x.md", output)
+                self.assertIn("2026-11-11-x.md（第 9 行）", output)
 
     def test_closed_lessons_do_not_count(self) -> None:
         for status in ("已處理", "不採用"):
@@ -857,6 +857,41 @@ class LessonReferenceTests(TestCase):
         code, output = self.check_with("# 舊格式\n\n類型：問題由他人發現\n\n證據：.toukadev/tmp/demo/red.log\n")
         self.assertEqual(code, 1, output)
 
+    def test_empty_status_does_not_borrow_the_next_line(self) -> None:
+        text = "# 標題\n\n狀態：\n已處理\n\n## 證據\n- .toukadev/tmp/demo/red.log\n"
+        code, output = self.check_with(text)
+        self.assertEqual(code, 1, output)
+
+    def test_unreadable_lesson_is_refused_without_a_traceback(self) -> None:
+        original = Path.read_text
+
+        def fail_for_lessons(path: Path, *args: object, **kwargs: object) -> str:
+            if path.parent.name == cc.LESSONS_FOLDER:
+                raise PermissionError("denied")
+            return original(path, *args, **kwargs)  # type: ignore[arg-type]
+
+        text = LESSON_TEXT.format(status="已處理", evidence="none")
+        with patch.object(Path, "read_text", fail_for_lessons):
+            code, output = self.check_with(text)
+        self.assertEqual(code, 1, output)
+        self.assertIn("讀不到流程紀錄 2026-11-11-x.md", output)
+        self.assertNotIn("Traceback", output)
+
+    def test_unlistable_lessons_folder_is_refused_without_a_traceback(self) -> None:
+        original = Path.iterdir
+
+        def fail_for_lessons(path: Path) -> object:
+            if path.name == cc.LESSONS_FOLDER:
+                raise PermissionError("denied")
+            return original(path)
+
+        text = LESSON_TEXT.format(status="已處理", evidence="none")
+        with patch.object(Path, "iterdir", fail_for_lessons):
+            code, output = self.check_with(text)
+        self.assertEqual(code, 1, output)
+        self.assertIn("讀不到流程紀錄的資料夾", output)
+        self.assertNotIn("Traceback", output)
+
     def test_reference_forms(self) -> None:
         cases = {
             ".toukadev/tmp/demo/red.log": 1,
@@ -866,6 +901,9 @@ class LessonReferenceTests(TestCase):
             ".TOUKADEV/TMP/DEMO/red.log": 1,
             "見 .toukadev/tmp/demo": 1,
             "（.toukadev/tmp/demo）": 1,
+            "見 .toukadev/tmp/demo.": 1,
+            "見 .toukadev/tmp/demo。": 1,
+            ".toukadev/tmp/demo.v2/red.log": 0,
             ".toukadev/tmp/demo-2/red.log": 0,
             ".toukadev/tmp/demo12": 0,
             ".toukadev/tmp/demo_x": 0,

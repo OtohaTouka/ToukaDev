@@ -176,6 +176,7 @@ python -I <dev-workflow 安裝根>/assets/progress/sync_progress.py <.toukadev/p
 - 另外直接查 `git worktree list` 的全部項目（不靠紀錄有沒有登記）：落在 `.toukadev/tmp/` 底下的工作資料夾列成整個專案的
   「對不上」，`--apply` 不改它。四種自動清理都清不掉它，不自動刪：驗證或重現用的複本照「驗證用複本」重建，舊的列進清理清單
   交人類；實作用的工作資料夾沒有 venv、`node_modules` 就用 `git worktree move` 搬到 `.toukadev/worktrees/`，有的問人類。
+  搬之前確認沒有執行者或程式還在用它；搬完當場把暫存項目那一列的位置改成新位置，不留給 `--apply`（舊位置不在了，它會改成已清理）。
 - 結果印在畫面上，也寫進同資料夾的 `sync-status.json`（格式見 `docs/ssot/README.md`；先寫暫存檔再替換），網頁最上面顯示；
   紀錄超過 500 份時不寫，請先把舊紀錄搬走。結束代碼：0 沒有對不上也沒有查不到（只有「沒比對」的列也是 0）；1 有對不上、
   查不到、讀不到紀錄、寫不進結果檔或 `--apply` 被拒絕；2 位置或參數不對、Python 太舊。

@@ -54,7 +54,8 @@ LESSONS_FOLDER = "lessons"
 LESSON_SUFFIX = ".md"
 # 流程紀錄的狀態值以 improvement-loop 的 recording.md 為準；這兩種已結案，不算還在引用。
 CLOSED_LESSON_STATES = ("已處理", "不採用")
-LESSON_STATE_LINE = re.compile(r"^\s*狀態[：:]\s*(\S.*)$", re.MULTILINE)
+# 只在同一行裡找狀態值（空白含全形空白），不跨到下一行。
+LESSON_STATE_LINE = re.compile(r"^[ \t　]*狀態[：:][ \t　]*(\S.*)$", re.MULTILINE)
 BRANCH_REF_PREFIX = "refs/heads/"
 MAX_LISTED = 10
 ORIGIN_HEAD = "refs/remotes/origin/HEAD"
@@ -599,8 +600,13 @@ def check_lessons_cite(root: Path, task: str, verdict: Verdict) -> None:
     if not folder.is_dir():
         return
     pattern = tmp_reference_pattern(task)
+    try:
+        entries = sorted(folder.iterdir(), key=lambda path: path.name)
+    except OSError as error:
+        verdict.reasons.append(f"讀不到流程紀錄的資料夾 {folder}（{error}），沒辦法確認有沒有引用。")
+        return
     citing: list[str] = []
-    for entry in sorted(folder.iterdir(), key=lambda path: path.name):
+    for entry in entries:
         if entry.suffix.lower() != LESSON_SUFFIX or is_link(entry) or not entry.is_file():
             continue
         try:
@@ -608,8 +614,10 @@ def check_lessons_cite(root: Path, task: str, verdict: Verdict) -> None:
         except OSError as error:
             verdict.reasons.append(f"讀不到流程紀錄 {entry.name}（{error}），沒辦法確認有沒有引用。")
             continue
-        if not lesson_is_closed(text) and pattern.search(text):
-            citing.append(entry.name)
+        match = None if lesson_is_closed(text) else pattern.search(text)
+        if match is not None:
+            line = text.count("\n", 0, match.start()) + 1
+            citing.append(f"{entry.name}（第 {line} 行）")
     if citing:
         verdict.reasons.append(
             "待處理或保留觀察的流程紀錄還引用這個暫存資料夾，"
@@ -618,10 +626,14 @@ def check_lessons_cite(root: Path, task: str, verdict: Verdict) -> None:
 
 
 def tmp_reference_pattern(task: str) -> re.Pattern[str]:
-    """.toukadev/tmp/<任務代號>：兩種分隔都認、不分大小寫，任務代號要比到段落結尾。"""
+    """.toukadev/tmp/<任務代號>：兩種分隔都認、不分大小寫，任務代號要比到段落結尾。
+
+    後面接句號再結束（例如「見 .toukadev/tmp/demo.」）算引用；接 .v2 這種副檔名或名字的延續不算。
+    """
     separator = r"[\\/]+"
     return re.compile(
-        rf"\.toukadev{separator}tmp{separator}{re.escape(task)}(?![A-Za-z0-9_.-])",
+        rf"\.toukadev{separator}tmp{separator}{re.escape(task)}"
+        r"(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9_-])",
         re.IGNORECASE,
     )
 

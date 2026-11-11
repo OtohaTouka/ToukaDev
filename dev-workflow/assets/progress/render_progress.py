@@ -2259,6 +2259,8 @@ def parse_sync_finding(item: object, project_rows: bool = True) -> SyncFinding:
     project_wide = item["record"] == SYNC_PROJECT_RECORD
     if project_wide and not project_rows:
         raise SyncFormatError("第 1 版的結果不能有整個專案的列")
+    if project_wide and item["section"] != TEMP:
+        raise SyncFormatError("整個專案的列只能在暫存項目")
     bad_row = item["row"] != 0 if project_wide else item["row"] < 1
     if bad_row:
         raise SyncFormatError("結果的列號不對")
