@@ -830,6 +830,32 @@ REQUIRED_OBLIGATION_FRAGMENTS = (
         "代理平台禁止 AI 永久刪除時，第 1、2 種項目照常跑清理前檢查，但不用規定的刪法，也不換成任何其他刪法（含移到資源回收筒）",
     ),
     ("dev-workflow/references/progress-record.md", "同意與決定只認人類在本對話的回覆"),
+    # Thirteenth improvement run (ADR-053): approved questions 1 (two sentences), 2, 3 (two sentences), 4 and 5.
+    (
+        "asset-workflow/SKILL.md",
+        "減少或縮小計畫列的元件、換做法或驅動方式不能寫進可調範圍，和上面的例子衝突時算超出。",
+    ),
+    ("asset-workflow/SKILL.md", "分不清算不算範圍內時，算超出。"),
+    (
+        "asset-workflow/references/reference-review.md",
+        "改成只記錄後照常交審的人確認，並在 ART-0 交件逐項列出指標、原因（分不出缺陷、規則不公平，或基準條件不同）與對 TDD 的連帶影響。",
+    ),
+    (
+        "asset-workflow/references/reference-review.md",
+        "清單內的問題修正後重審：交同一位審的人只審差異，到沒有清單內的問題為止。",
+    ),
+    (
+        "asset-workflow/references/reference-review.md",
+        "清單外的 HIGH 與 BLOCKING，寫的人修正後重審，或寫成要人類逐項明確回覆的事；接受 ART-1 或籠統核准都不算回覆，沒回的留在進度紀錄當未解，ART-2 前要有回覆。",
+    ),
+    (
+        "asset-workflow/SKILL.md",
+        "預設不看，人類在這一項明確回覆才算人類要求，籠統核准整份計畫不算。",
+    ),
+    (
+        "asset-workflow/SKILL.md",
+        "草稿只放本任務暫存資料夾，不進 repo、不改作品檔、作品輸出與母帶；要沿用草稿程式，列進 DEV-A 計畫，照核心原則的 Red／Green 規則重寫，不直接複製。",
+    ),
 )
 PROCEDURE_STEPS = (
     ("dev-workflow/references/planning.md", (1, 2, 3)),
