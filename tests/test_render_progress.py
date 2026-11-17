@@ -1302,13 +1302,14 @@ class PageToolsTests(TestCase):
     def test_notice_shows_only_the_sentence_for_the_reason(self) -> None:
         # 腳本回的 "search" 和 CSS 的 [data-reason="search"] 是同一個字
         self.assertIn('if (searching) { return "search"; }', rp.SCRIPT)
-        self.assertIn(
-            ('.pause-notice[data-reason="search"] .pause-select', "none"),
+        # 整份比對：多一條無條件藏起來的規則也會紅
+        self.assertEqual(
             display_rules(rp.STYLE, ".pause-select"),
+            [('.pause-notice[data-reason="search"] .pause-select', "none")],
         )
-        self.assertIn(
-            ('.pause-notice:not([data-reason="search"]) .pause-search', "none"),
+        self.assertEqual(
             display_rules(rp.STYLE, ".pause-search"),
+            [('.pause-notice:not([data-reason="search"]) .pause-search', "none")],
         )
         self.assertEqual(rp.SEARCH_PAUSED_TEXT, SEARCH_PAUSED_NOTICE)
 
@@ -1328,11 +1329,19 @@ class PageToolsTests(TestCase):
         self.assertIn(
             '    document.addEventListener("selectionchange", showPause);\n', rp.SCRIPT
         )
-        # 只在 startSearch 開始搜尋；瀏覽器自己的搜尋列照常打開
+        # 只在上面比對過的地方開始或停止搜尋；段落外多一處（例如 selectionchange 也停止）會紅
         self.assertEqual(rp.SCRIPT.count("searching = true"), 1)
-        self.assertEqual(rp.SCRIPT.count("addEventListener(\"keydown\""), 1)
+        self.assertEqual(rp.SCRIPT.count("searching = false"), 2)
+        self.assertEqual(rp.SCRIPT.count("leftForSearch = true"), 1)
+        self.assertEqual(rp.SCRIPT.count("startSearch"), 2)
+        self.assertEqual(rp.SCRIPT.count("stopSearch"), 4)
+        self.assertEqual(rp.SCRIPT.count('addEventListener("keydown"'), 1)
+        # 瀏覽器自己的搜尋列照常打開
         self.assertNotIn("preventDefault", rp.SCRIPT)
         self.assertNotIn("stopPropagation", rp.SCRIPT)
+        # 只有暫停提示這一處寫固定值的 dataset；setAttribute 仍只有主題一處（另一個測試）
+        self.assertEqual(rp.SCRIPT.count("dataset"), 1)
+        self.assertNotIn("dataset", rp.HEAD_SCRIPT)
 
     def test_footer_says_refresh_needs_a_normal_browser(self) -> None:
         for page in self.render_pages():
