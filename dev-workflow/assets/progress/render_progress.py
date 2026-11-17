@@ -25,7 +25,8 @@
 - 角落顯示「畫面更新於 HH:MM:SS」；只把本機檔案顯示成快照的工具（網址不是
   file:、http:、https:）或網頁程式沒有執行時，改顯示不會自動更新的提醒，
   也不排自動重新整理（是否即時只看 head 腳本依協定白名單設定的 class）。
-- 選取文字時暫停重新整理，並在固定位置說明原因。
+- 選取文字時暫停重新整理；按 Ctrl+F、Cmd+F 或 F3 搜尋時也暫停，關掉搜尋列（網頁拿回焦點）、
+  點一下頁面或按 Esc 就恢復（ADR-054）。兩種都在固定位置說明原因。
 - 淺色／深色切換只記在這個瀏覽器（localStorage），只接受 light、dark。
 - 審核紀錄超過 10 列時，較早的列收合；展開狀態只記在這個分頁（sessionStorage），
   重新整理後照舊（ADR-046 D8）。
@@ -147,6 +148,7 @@ LIVE_PROTOCOLS = ("file:", "http:", "https:")
 LOADED_TEXT = "畫面更新於 "
 SNAPSHOT_TEXT = "此畫面不會自動更新：請用一般瀏覽器開啟 index.html"
 PAUSED_TEXT = "已暫停自動更新：你選取了文字（取消選取即恢復）"
+SEARCH_PAUSED_TEXT = "已暫停自動更新：你在搜尋（關掉搜尋列或點一下頁面就恢復）"
 THEME_STORAGE_KEY = "toukadev-progress-theme"
 THEME_TITLE = "切換顯示：跟隨系統 → 淺色 → 深色"
 # 審核紀錄超過這麼多列時，只展開最近的這幾列，較早的收合；展開狀態只記在這個分頁（sessionStorage）。
@@ -1041,6 +1043,8 @@ html[data-theme="light"] .theme-light, html[data-theme="dark"] .theme-dark {
   font-weight: 600;
 }
 html:not(.live) .pause-notice { display: none; }
+.pause-notice[data-reason="search"] .pause-select { display: none; }
+.pause-notice:not([data-reason="search"]) .pause-search { display: none; }
 """
 STYLE = THEME_STYLE + (
     """* { box-sizing: border-box; }
@@ -1152,6 +1156,8 @@ SCRIPT = """
   var OLDER_KEY = %(older_key)s;
   var NEXT_THEME = { system: "light", light: "dark", dark: "system" };
   var LIVE = document.documentElement.classList.contains("live");
+  var searching = false;
+  var leftForSearch = false;
   function staleLevel(node, elapsed) {
     if (elapsed > Number(node.getAttribute("data-alert-after"))) { return "alert"; }
     if (elapsed > Number(node.getAttribute("data-warn-after"))) { return "warn"; }
@@ -1179,13 +1185,36 @@ SCRIPT = """
   function selectedText() {
     return window.getSelection ? String(window.getSelection()) : "";
   }
-  function showPause(paused) {
+  function isFindKey(event) {
+    if (event.key === "F3") { return true; }
+    var isF = String(event.key).toLowerCase() === "f" || event.code === "KeyF";
+    return isF && (event.ctrlKey || event.metaKey) && !event.altKey;
+  }
+  function pauseReason() {
+    if (searching) { return "search"; }
+    return selectedText() ? "select" : "";
+  }
+  function showPause() {
     var notice = document.querySelector(".pause-notice");
-    if (notice) { notice.hidden = !paused; }
+    if (!notice) { return; }
+    var reason = pauseReason();
+    notice.hidden = reason === "";
+    notice.dataset.reason = reason;
+  }
+  function startSearch() {
+    searching = true;
+    leftForSearch = false;
+    showPause();
+  }
+  function stopSearch() {
+    if (!searching) { return; }
+    searching = false;
+    leftForSearch = false;
+    showPause();
   }
   function scheduleReload() {
     window.setTimeout(function () {
-      if (selectedText()) { showPause(true); scheduleReload(); return; }
+      if (pauseReason()) { showPause(); scheduleReload(); return; }
       window.location.reload();
     }, REFRESH_MS);
   }
@@ -1220,8 +1249,17 @@ SCRIPT = """
   function watchControls() {
     var toggle = document.querySelector(".theme-toggle");
     if (toggle) { toggle.addEventListener("click", toggleTheme); }
-    document.addEventListener("selectionchange", function () {
-      showPause(selectedText() !== "");
+    document.addEventListener("selectionchange", showPause);
+    document.addEventListener("keydown", function (event) {
+      if (isFindKey(event)) { startSearch(); return; }
+      if (event.key === "Escape") { stopSearch(); }
+    });
+    document.addEventListener("mousedown", stopSearch);
+    window.addEventListener("blur", function () {
+      if (searching) { leftForSearch = true; }
+    });
+    window.addEventListener("focus", function () {
+      if (leftForSearch) { stopSearch(); }
     });
   }
   function olderKey() {
@@ -1288,7 +1326,11 @@ PAGE_TOOLS = (
     '<span class="theme-dark">主題：深色</span></button>'
     "</div>\n"
 )
-PAUSE_NOTICE = f'<p class="pause-notice" role="status" hidden>{esc(PAUSED_TEXT)}</p>\n'
+PAUSE_NOTICE = (
+    '<p class="pause-notice" role="status" hidden>'
+    f'<span class="pause-select">{esc(PAUSED_TEXT)}</span>'
+    f'<span class="pause-search">{esc(SEARCH_PAUSED_TEXT)}</span></p>\n'
+)
 
 
 def inline(text: str) -> str:
