@@ -1047,6 +1047,58 @@ class SafetyTests(TestCase):
 
 SNAPSHOT_WARNING = "此畫面不會自動更新：請用一般瀏覽器開啟 index.html"
 PAUSED_NOTICE = "已暫停自動更新：你選取了文字（取消選取即恢復）"
+SEARCH_PAUSED_NOTICE = "已暫停自動更新：你在搜尋（關掉搜尋列或點一下頁面就恢復）"
+# 搜尋時暫停（ADR-054）：下面每一段都整段比對，改壞任何一個條件都會變紅。
+FIND_KEY_CHECK = """  function isFindKey(event) {
+    if (event.key === "F3") { return true; }
+    var isF = String(event.key).toLowerCase() === "f" || event.code === "KeyF";
+    return isF && (event.ctrlKey || event.metaKey) && !event.altKey;
+  }
+"""
+PAUSE_REASON_CHECK = """  function pauseReason() {
+    if (searching) { return "search"; }
+    return selectedText() ? "select" : "";
+  }
+"""
+SHOW_PAUSE_CHECK = """  function showPause() {
+    var notice = document.querySelector(".pause-notice");
+    if (!notice) { return; }
+    var reason = pauseReason();
+    notice.hidden = reason === "";
+    notice.dataset.reason = reason;
+  }
+"""
+SCHEDULE_CHECK = """  function scheduleReload() {
+    window.setTimeout(function () {
+      if (pauseReason()) { showPause(); scheduleReload(); return; }
+      window.location.reload();
+    }, REFRESH_MS);
+  }
+"""
+SEARCH_STATE_CHECK = """  function startSearch() {
+    searching = true;
+    leftForSearch = false;
+    showPause();
+  }
+  function stopSearch() {
+    if (!searching) { return; }
+    searching = false;
+    leftForSearch = false;
+    showPause();
+  }
+"""
+SEARCH_LISTENERS_CHECK = """    document.addEventListener("keydown", function (event) {
+      if (isFindKey(event)) { startSearch(); return; }
+      if (event.key === "Escape") { stopSearch(); }
+    });
+    document.addEventListener("mousedown", stopSearch);
+    window.addEventListener("blur", function () {
+      if (searching) { leftForSearch = true; }
+    });
+    window.addEventListener("focus", function () {
+      if (leftForSearch) { stopSearch(); }
+    });
+"""
 THEME_CHECK = re.compile(
     r'if \(theme === "light" \|\| theme === "dark"\) \{\s*'
     r'root\.setAttribute\("data-theme", theme\);\s*\}'
@@ -1069,7 +1121,12 @@ class PageToolsTests(TestCase):
             self.assertEqual(live.text(), "畫面更新於 ")
             self.assertEqual(page.find("span", cls="loaded-at", within=live).text(), "")
             notice = page.find("p", cls="pause-notice")
-            self.assertEqual(notice.text(), PAUSED_NOTICE)
+            select = page.find("span", cls="pause-select", within=notice)
+            search = page.find("span", cls="pause-search", within=notice)
+            self.assertEqual(select.text(), PAUSED_NOTICE)
+            self.assertEqual(search.text(), SEARCH_PAUSED_NOTICE)
+            # 原因只由腳本設定，HTML 不寫死
+            self.assertNotIn("data-reason", notice.attrs)
             self.assertIn("hidden", notice.attrs)
             self.assertEqual(notice.attrs.get("role"), "status")
             button = page.find("button", cls="theme-toggle", within=tools)
@@ -1241,6 +1298,41 @@ class PageToolsTests(TestCase):
             ("html:not(.live) .pause-notice", "none"),
             display_rules(rp.STYLE, ".pause-notice"),
         )
+
+    def test_notice_shows_only_the_sentence_for_the_reason(self) -> None:
+        # 腳本回的 "search" 和 CSS 的 [data-reason="search"] 是同一個字
+        self.assertIn('if (searching) { return "search"; }', rp.SCRIPT)
+        self.assertIn(
+            ('.pause-notice[data-reason="search"] .pause-select', "none"),
+            display_rules(rp.STYLE, ".pause-select"),
+        )
+        self.assertIn(
+            ('.pause-notice:not([data-reason="search"]) .pause-search', "none"),
+            display_rules(rp.STYLE, ".pause-search"),
+        )
+        self.assertEqual(rp.SEARCH_PAUSED_TEXT, SEARCH_PAUSED_NOTICE)
+
+    def test_find_keys_pause_reload_until_the_page_gets_focus_back(self) -> None:
+        for block in (
+            FIND_KEY_CHECK,
+            PAUSE_REASON_CHECK,
+            SHOW_PAUSE_CHECK,
+            SCHEDULE_CHECK,
+            SEARCH_STATE_CHECK,
+            SEARCH_LISTENERS_CHECK,
+        ):
+            with self.subTest(block=block.splitlines()[0]):
+                self.assertIn(block, rp.SCRIPT)
+        self.assertIn("  var searching = false;\n", rp.SCRIPT)
+        self.assertIn("  var leftForSearch = false;\n", rp.SCRIPT)
+        self.assertIn(
+            '    document.addEventListener("selectionchange", showPause);\n', rp.SCRIPT
+        )
+        # 只在 startSearch 開始搜尋；瀏覽器自己的搜尋列照常打開
+        self.assertEqual(rp.SCRIPT.count("searching = true"), 1)
+        self.assertEqual(rp.SCRIPT.count("addEventListener(\"keydown\""), 1)
+        self.assertNotIn("preventDefault", rp.SCRIPT)
+        self.assertNotIn("stopPropagation", rp.SCRIPT)
 
     def test_footer_says_refresh_needs_a_normal_browser(self) -> None:
         for page in self.render_pages():
